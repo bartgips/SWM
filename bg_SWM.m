@@ -1,4 +1,10 @@
-function [cfg]=findtemp_PT_clust_normalized(cfg, dat)
+function [cfg]=bg_SWM(cfg, dat)
+% [cfg]=bg_SWM(cfg, dat)
+% cfg: a sturcture that contains all parameters
+% dat: optional the data on which you want to apply the algorithm
+%       (not neccesary if cfg.fname and cfg.varname are present)
+
+
 
 % load data from file instead of from function input
 if nargin<2
@@ -41,12 +47,7 @@ if isfield(cfg,'fitlen')
 else
   error('fitlen should be defined')
 end
-% 
-% if isfield(cfg,'fs')
-%   fs=cfg.fs;
-% else
-%   error('fs should be defined')
-% end
+
 if isfield(cfg,'guard')
   guard=cfg.guard;
 else
@@ -54,11 +55,7 @@ else
   cfg.guard=guard;
 end
 
-% if isfield(cfg,'cclim')
-%   cclim=cfg.cclim;
-% else
-%   cclim=500;
-% end
+
 if isfield(cfg,'iterlim')
   iterlim=cfg.iterlim;
 else
@@ -98,7 +95,6 @@ if isfield(cfg,'Tfac')
   PT=numel(Tfac);
   cfg.PT=PT;
 else
-  %   Temperatures=linspace(.1,
   Tfac=linspace(1e-1,5,PT+1);
   Tfac=Tfac(1:end-1);
 end
