@@ -1,8 +1,11 @@
 function [cfg]=bg_SWM(cfg, dat)
 % [cfg]=bg_SWM(cfg, dat)
-% cfg: a structure that contains all parameters
-% dat: optional the data on which you want to apply the algorithm
+% cfg:  a structure that contains all parameters
+% dat:  optional the data on which you want to apply the algorithm
 %       (not neccesary if cfg.fname and cfg.varname are present)
+%       Dimensions: M x N
+%       M: trials
+%       N: time points
 % 
 % Fields in cfg that are required:
 % .fitlen: the length of the sliding windows in timestamp units
@@ -18,6 +21,9 @@ function [cfg]=bg_SWM(cfg, dat)
 % .guard:     the minimal space between the starting positions of two 
 %             succesive windows. Also determines the number of windows.
 %             (default = .fitlen/1.5)
+% .numWin:    number of windows to fit per trial. Limited by length of
+%             data, .fitlen and .guard;
+%             (default = max)
 % .nPT:       number of parallel temperatures 
 %             (default = 1)
 % .Tfac:      Temperatures used in the PT sampling algorithm. This overrides
@@ -25,7 +31,7 @@ function [cfg]=bg_SWM(cfg, dat)
 %             (default = logspace(-3,1,.nPT))
 % .konstant:  Bolzmann constant used in determining whether two
 %             temperatures should be exchanged.
-%             (default = 1e-3)
+%             (default = 1e3)
 % 
 % Note: good values for .Tfac and .konstant depend on the scaling of your
 % data and the signal to noise level
@@ -33,6 +39,8 @@ function [cfg]=bg_SWM(cfg, dat)
 % OPTIONAL PARAMETERS
 % .numclust:  number of shapes (=clusters) to find
 %             (default = 1)
+% .fs:        Sampling rate of dataset. Needed when using .Fbp or .Fbs
+%             below
 % .Fbp:       Bandpass frequency range. Usage: [hp lp]
 %             When .Fbp is supplied, the function first applies a bandpass
 %             filter to the data before performing the SWM
@@ -121,7 +129,7 @@ end
 if isfield(cfg,'konstant')
   konstant=cfg.konstant;
 else
-  konstant=1e-3;
+  konstant=1e3;
   cfg.konstant=konstant;
 end
 
@@ -146,20 +154,32 @@ else
   Tfac=logspace(-3,1,nPT);
 end
 
+if isfield(cfg,'numWin')
+  numWin=cfg.numWin;
+else
+  numWin=0;
+end
+
 if isfield(cfg,'loc')
   loc=cfg.loc;
   if numel(loc)~= nPT || size(loc{1},1)~=size(dat,1)
     error('location is not correct')
   end
 else
+  loc=cell(1,nPT);
   for n=1:nPT
     if ~debug || n<2
-    loc{n}=initloc(guard,fitlen,dat);
+      if numWin
+      [loc{n}, numWin]=initloc(guard,fitlen,dat,numWin);
+      else
+        [loc{n}, numWin]=initloc(guard,fitlen,dat);
+      end
     else
       loc{n}=loc{end};
     end
   end
   tloc=loc{end};
+  cfg.numWin=numWin;
 end
 
 if isfield(cfg,'bestloc')
@@ -195,10 +215,10 @@ end
 
 
 
+
 % find the number of sample vectors/templates
 numtrl=size(dat,1);
-numtemp=size(loc{1},2)-1;
-numtemplates=numtemp*numtrl;
+numtemplates=numWin*numtrl;
 cfg.numtemplates=numtemplates;
 
 % construct sample vectors
@@ -216,7 +236,7 @@ reverseStr='';
 for T=1:nPT
   if T<2 || ~debug
   for n=1:numtemplates
-    [trldum idxdum]=ind2sub([numtrl,numtemp],n);
+    [trldum idxdum]=ind2sub([numtrl,numWin],n);
     s_i=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+fitlen-1);
     z_i{T}(n,:)=(s_i(:)-nanmean(s_i(:)))/nanstd(s_i(:),1);
     
@@ -261,7 +281,7 @@ if initclust
         locidxdum=locidx;
       end
       clustID(locidxdum,T)=clustidx;
-      [trldum tidxdum]=ind2sub([numtrl, numtemp],locidxdum);
+      [trldum tidxdum]=ind2sub([numtrl, numWin],locidxdum);
       clust{clustidx,T}.linidx=locidxdum;
       clust{clustidx,T}.trl=trldum;
       clust{clustidx,T}.tidx=tidxdum;
@@ -366,7 +386,7 @@ while iter<numIt %&&  cc<cclim
     shift=rand<pshift;
     
     if shift %shift a window (no cluster swap)
-      [trl tidx]=ind2sub([numtrl,numtemp],lidx);
+      [trl tidx]=ind2sub([numtrl,numWin],lidx);
       
       ploc=loc{T}(trl,tidx);
       locchange=0;
@@ -528,7 +548,7 @@ while iter<numIt %&&  cc<cclim
   if swapcount >= .5e3/(nPT-1);
     Tswap=randperm(nPT-1,1);
     Tswap=[Tswap Tswap+1];
-    pswap=exp(konstant*diff(1./Tfac(Tswap))*diff(D(Tswap)));
+    pswap=exp(1/konstant*diff(1./Tfac(Tswap))*diff(D(Tswap)));
     if rand < pswap;
       D(fliplr(Tswap))=D(Tswap);
       comcost(fliplr(Tswap))=comcost((Tswap));
@@ -655,15 +675,26 @@ end
 
 
 
-function loc=initloc(guard,fitlen,data)
+function [loc,numWin]=initloc(guard,fitlen,data,numWin)
 len=size(data);
 dum=1:2*guard:max((len(2)-fitlen-guard),1);
-loc=nan(size(data,1),numel(dum)+1);
+
+if nargin<4
+  numWin=numel(dum);
+else
+  if numWin>numel(dum)
+    numWin=numel(dum);
+  end
+end
+
+
+
+loc=nan(size(data,1),numWin+1);
 for n=1:len(1)
-  dum=1:2*guard:max((len(2)-fitlen-guard),1);
-  dum=dum+randval([guard, numel(dum)])-1;
-  dum=min(dum,len(2)-fitlen+1);
-  loc(n,:)=[dum size(data,2)+guard-fitlen];
+  dum2=dum+randval([guard, numel(dum)])-1;
+  dum2=min(dum2,len(2)-fitlen+1);
+  sel=randperm(numel(dum2),numWin);
+  loc(n,:)=[dum2(sel) size(data,2)+guard-fitlen];
 end
 
 
