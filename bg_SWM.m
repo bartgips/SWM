@@ -17,11 +17,11 @@ function [cfg]=bg_SWM(cfg, dat)
 % .guard:     the minimal space between the starting positions of two 
 %             succesive windows. Also determines the number of windows.
 %             (default = .fitlen/1.5)
-% .PT:        number of parallel temperatures 
+% .nPT:       number of parallel temperatures 
 %             (default = 1)
 % .Tfac:      Temperatures used in the PT sampling algorithm. This overrides
-%             .PT to numel(.Tfac). 
-%             (default = logspace(-1,3,.PT))
+%             .nPT to numel(.Tfac). 
+%             (default = logspace(-3,1,.nPT))
 % .konstant:  Bolzmann constant used in determining whether two
 %             temperatures should be exchanged.
 %             (default = 1e-3)
@@ -123,27 +123,27 @@ else
 end
   
 
-if isfield(cfg,'PT')
-  PT=cfg.PT;
+if isfield(cfg,'nPT')
+  nPT=cfg.nPT;
 else
-  PT=1;
+  nPT=1;
 end
 
 if isfield(cfg,'Tfac')
   Tfac=cfg.Tfac;
-  PT=numel(Tfac);
-  cfg.PT=PT;
+  nPT=numel(Tfac);
+  cfg.nPT=nPT;
 else
-  Tfac=logspace(-1,3,PT);
+  Tfac=logspace(-3,1,nPT);
 end
 
 if isfield(cfg,'loc')
   loc=cfg.loc;
-  if numel(loc)~= PT || size(loc{1},1)~=size(dat,1)
+  if numel(loc)~= nPT || size(loc{1},1)~=size(dat,1)
     error('location is not correct')
   end
 else
-  for n=1:PT
+  for n=1:nPT
     if ~debug || n<2
     loc{n}=initloc(guard,fitlen,dat);
     else
@@ -193,18 +193,18 @@ numtemplates=numtemp*numtrl;
 cfg.numtemplates=numtemplates;
 
 % construct sample vectors
-z_i=cell(1,PT);
+z_i=cell(1,nPT);
 z_i(:)={nan(numtemplates,fitlen)};
-icomcost=nan(numtemplates,PT);
+icomcost=nan(numtemplates,nPT);
 
 cm=icomcost;
-comcost=nan(1,PT);
+comcost=nan(1,nPT);
 if verbose
   fprintf('\nInitializing sample vectors...')
 end
 reverseStr='';
 
-for T=1:PT
+for T=1:nPT
   if T<2 || ~debug
   for n=1:numtemplates
     [trldum idxdum]=ind2sub([numtrl,numtemp],n);
@@ -236,10 +236,10 @@ end
 
 
 if initclust
-  clust=cell(numclust,PT);
+  clust=cell(numclust,nPT);
   clustID=nan(numtemplates,T);
   tempperclust=round(numtemplates/numclust);
-  for T=1:PT
+  for T=1:nPT
     % initialize clusters
     locidx=randperm(numtemplates);
     
@@ -263,8 +263,8 @@ if initclust
   end
   
 else %only reconstruct clust ID and initial cost
-  clustID=nan(numtemplates,PT);
-  for T=1:PT
+  clustID=nan(numtemplates,nPT);
+  for T=1:nPT
     for n=1:numclust;
       
       clustID(clust{n,T}.linidx,T)=n;
@@ -274,9 +274,9 @@ else %only reconstruct clust ID and initial cost
 end
 
 if isfield(cfg,'bestclust')
-  clust(:,PT)=cfg.bestclust;
+  clust(:,nPT)=cfg.bestclust;
   for n=1:numclust
-    clustID(clust{n,PT}.linidx,PT)=n;
+    clustID(clust{n,nPT}.linidx,nPT)=n;
   end
 end
 
@@ -286,11 +286,9 @@ end
 if verbose
   fprintf('\nInitializing cost matrices...')
 end
-reverseStr='';
-D=zeros(1,PT);
-% z_isum=nan(PT,numclust,fitlen);
+D=zeros(1,nPT);
 N=fitlen;
-for T=1:PT
+for T=1:nPT
   D(T)=comcost(T);
   for n=1:numclust
     N_c=clust{n,T}.numtemplates;
@@ -304,32 +302,21 @@ for T=1:PT
 end
 
 
-%   msg=sprintf('\n Temperature %d/%d', [T PT]);
-%   if verbose
-%   fprintf([reverseStr, msg]);
-%   end
-%   reverseStr = repmat(sprintf('\b'), 1, length(msg));
-%
 
-% keyboard
 
 if verbose
   fprintf('\nDone!\n')
 end
-% end
+
 
 swapcount=0;
 Tchangecount=0;
 iterrecalc=1;
-icostmean=nan(PT,2);
+icostmean=nan(nPT,2);
 icostsd=icostmean;
-Ttoken=zeros(1,PT);
-rejcount=zeros(2,PT);
+Ttoken=zeros(1,nPT);
+rejcount=zeros(2,nPT);
 clustnumel=nan(1,numclust);
-% % Tracking the location vectors of the lowest temperature;
-% minTloc=nan(cfg.numtemplates, cfg.numIt);
-% dum=loc{end}(:,1:end-1);
-% minTloc(:,1)=dum(:);
 
 
 
@@ -339,10 +326,10 @@ clustnumel=nan(1,numclust);
 iter=1;
 mincost=D;
 mincostTot=min(D);
-totcost=nan(PT,numIt);
+totcost=nan(nPT,numIt);
 totcost(:,1)=mincost;
 
-cc=zeros(1,PT);
+cc=zeros(1,nPT);
 
 reverseStr='';
 if verbose
@@ -362,7 +349,7 @@ while iter<numIt %&&  cc<cclim
     pshift=2;
   end
   
-  for T=1:PT
+  for T=1:nPT
     lidx=randval(numtemplates);
     
     clustidx=clustID(lidx,T);
@@ -418,7 +405,7 @@ while iter<numIt %&&  cc<cclim
       if cVal>0
         reject=0;
       else
-        if rand<exp(Tfac(T)*cVal)
+        if rand<exp(1/Tfac(T)*cVal)
           reject=0;
         else
           reject=1;
@@ -473,7 +460,7 @@ while iter<numIt %&&  cc<cclim
       if cVal>0
         reject=0;
       else
-        if rand<exp(Tfac(T)*cVal)
+        if rand<exp(1/Tfac(T)*cVal)
           reject=0;
         else
           reject=1;
@@ -529,10 +516,10 @@ while iter<numIt %&&  cc<cclim
   
   % Every couple of iterations, try a state swap between two random
   % temperatures
-  if swapcount >= .5e3/(PT-1);
-    Tswap=randperm(PT-1,1);
+  if swapcount >= .5e3/(nPT-1);
+    Tswap=randperm(nPT-1,1);
     Tswap=[Tswap Tswap+1];
-    pswap=exp(konstant*diff(Tfac(Tswap))*diff(D(Tswap)));
+    pswap=exp(konstant*diff(1./Tfac(Tswap))*diff(D(Tswap)));
     if rand < pswap;
       D(fliplr(Tswap))=D(Tswap);
       comcost(fliplr(Tswap))=comcost((Tswap));
@@ -548,7 +535,7 @@ while iter<numIt %&&  cc<cclim
   
   
   DTfac=[D; Tfac; cc];
-  msg=sprintf([' # iterations: %d/%d\n cc =\n cost =           Tfac =         cc =\n' repmat('  %E     %1.4E  %8d\n',1, PT) '\n Best clustering:\n ' repmat('%6d  ',1,numclust) '\n'], [iter numIt DTfac(:)' clustnumel]);
+  msg=sprintf([' # iterations: %d/%d\n cc =\n cost =           Tfac =         cc =\n' repmat('  %E     %1.4E  %8d\n',1, nPT) '\n Best clustering:\n ' repmat('%6d  ',1,numclust) '\n'], [iter numIt DTfac(:)' clustnumel]);
   if verbose
     fprintf([reverseStr, msg]);
   end
@@ -599,7 +586,7 @@ if ~exist('tclust','var')
   if numclust>1
   warning('no improvement in clustering found')
   end
-  tclust=clust(:,PT);
+  tclust=clust(:,nPT);
 end
 
 cfg.best_s=nan(fitlen,numclust);
