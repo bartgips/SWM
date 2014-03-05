@@ -1,5 +1,12 @@
 function [cfg]=bg_SWM(cfg, dat)
 % [cfg]=bg_SWM(cfg, dat)
+% 
+% Sliding Window Matching algorithm for detecting consistent, reocurring
+% shapes in a data set.
+% 
+% %%%%%%%
+% INPUT:
+% %%%%%%%
 % cfg:  a structure that contains all parameters
 % dat:  optional the data on which you want to apply the algorithm
 %       (not neccesary if cfg.fname and cfg.varname are present)
@@ -59,6 +66,15 @@ function [cfg]=bg_SWM(cfg, dat)
 %             temperature and then overwrite all the others. This speeds up
 %             initilization of the algorithm and is therefore useful during
 %             debugging.
+% 
+% %%%%%%%
+% OUTPUT:
+% %%%%%%%
+% cfg:	a structure containing the used parameters (i.e. the supplied and
+% default values used during the algorithm run)
+% 
+% Important fields:
+% .best_s:    Contains the best mean shape for every cluster.
 
 
 % load data from file instead of from function input
@@ -175,7 +191,7 @@ else
         [loc{n}, numWin]=initloc(guard,fitlen,dat);
       end
     else
-      loc{n}=loc{end};
+      loc{n}=loc{1};
     end
   end
   tloc=loc{end};
@@ -564,7 +580,7 @@ while iter<numIt %&&  cc<cclim
   
   
   DTfac=[D; Tfac; cc];
-  msg=sprintf([' # iterations: %d/%d\n cc =\n cost =           Tfac =         cc =\n' repmat('  %E     %1.4E  %8d\n',1, nPT) '\n Best clustering:\n ' repmat('%6d  ',1,numclust) '\n'], [iter numIt DTfac(:)' clustnumel]);
+  msg=sprintf([' # iterations: %d/%d\n\n cost =           Tfac =         cc =\n' repmat('  %E     %1.4E  %8d\n',1, nPT) '\n Best clustering:\n ' repmat('%6d  ',1,numclust) '\n'], [iter numIt DTfac(:)' clustnumel]);
   if verbose
     fprintf([reverseStr, msg]);
   end
