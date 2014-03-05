@@ -8,10 +8,14 @@ function [cfg]=bg_SWM(cfg, dat)
 % .fitlen: the length of the sliding windows in timestamp units
 % 
 % Optional fields (they all have a default value):
+% .fname:     path and filename of the .mat-file that contains the data on
+%             which the algorithms must be applied.
+% .varname:   the name of the variable within .fname tha actually contains
+%             the data.
 % .numIt:     the number of iterations the algorithm will run through.
 %             (default = 1e4)
-% .guard:     the minimal space between the starts of two succesive windows.
-%             Also determins the number of windows.
+% .guard:     the minimal space between the starting positions of two 
+%             succesive windows. Also determines the number of windows.
 %             (default = .fitlen/1.5)
 % .PT:        number of parallel temperatures 
 %             (default = 1)
