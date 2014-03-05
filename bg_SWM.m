@@ -3,8 +3,6 @@ function [cfg]=bg_SWM(cfg, dat)
 % cfg: a sturcture that contains all parameters
 % dat: optional the data on which you want to apply the algorithm
 %       (not neccesary if cfg.fname and cfg.varname are present)
-% 
-% test git 
 
 
 
