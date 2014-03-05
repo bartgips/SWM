@@ -1,8 +1,23 @@
 function [cfg]=bg_SWM(cfg, dat)
 % [cfg]=bg_SWM(cfg, dat)
-% cfg: a sturcture that contains all parameters
+% cfg: a structure that contains all parameters
 % dat: optional the data on which you want to apply the algorithm
 %       (not neccesary if cfg.fname and cfg.varname are present)
+% 
+% Fields in cfg that are required:
+% .fitlen: the length of the sliding windows in timestamp units
+% 
+% Optional fields (they all have a default value):
+% .numIt: the number of iterations the algorithm will run through.
+%         (default = 1e4)
+% .guard: the minimal space between the starts of two succesive windows.
+%         Also determins the number of windows.
+%         (default = .fitlen/1.5)
+% .PT:    number of parallel temperatures 
+%         (default = 1)
+% .Tfac:  Temperatures used in the PT sampling algorithm. This overrides
+%         .PT to numel(.Tfac). 
+%         (default= logspace(-1,3,.PT))
 
 
 
@@ -56,13 +71,14 @@ else
 end
 
 
-if isfield(cfg,'iterlim')
-  iterlim=cfg.iterlim;
+if isfield(cfg,'numIt')
+  numIt=cfg.numIt;
 else
-  iterlim=1e4;
-  cfg.iterlim=iterlim;
+  numIt=1e4;
+  cfg.numIt=numIt;
 end
 
+% add CoM weighting (not recommended; biases towards symmetry)
 if isfield(cfg,'ratio')
   ratio=cfg.ratio;
 else
@@ -95,7 +111,7 @@ if isfield(cfg,'Tfac')
   PT=numel(Tfac);
   cfg.PT=PT;
 else
-  Tfac=linspace(1e-1,5,PT+1);
+  Tfac=logspace(-1,3,PT);
   Tfac=Tfac(1:end-1);
 end
 
@@ -289,7 +305,7 @@ Ttoken=zeros(1,PT);
 rejcount=zeros(2,PT);
 clustnumel=nan(1,numclust);
 % % Tracking the location vectors of the lowest temperature;
-% minTloc=nan(cfg.numtemplates, cfg.iterlim);
+% minTloc=nan(cfg.numtemplates, cfg.numIt);
 % dum=loc{end}(:,1:end-1);
 % minTloc(:,1)=dum(:);
 
@@ -301,7 +317,7 @@ clustnumel=nan(1,numclust);
 iter=1;
 mincost=D;
 mincostTot=min(D);
-totcost=nan(PT,iterlim);
+totcost=nan(PT,numIt);
 totcost(:,1)=mincost;
 
 cc=zeros(1,PT);
@@ -311,7 +327,7 @@ if verbose
   fprintf('\nFinding templates...\n')
 end
 
-while iter<iterlim %&&  cc<cclim
+while iter<numIt %&&  cc<cclim
   iter=iter+1;
   iterrecalc=iterrecalc+1;
   swapcount=swapcount+1;
@@ -565,7 +581,7 @@ while iter<iterlim %&&  cc<cclim
   
   
   DTfac=[D; Tfac; cc];
-  msg=sprintf([' # iterations: %d/%d\n cc =\n cost =           Tfac =         cc =\n' repmat('  %E     %1.4E  %8d\n',1, PT) '\n Best clustering:\n ' repmat('%6d  ',1,numclust) '\n'], [iter iterlim DTfac(:)' clustnumel]);
+  msg=sprintf([' # iterations: %d/%d\n cc =\n cost =           Tfac =         cc =\n' repmat('  %E     %1.4E  %8d\n',1, PT) '\n Best clustering:\n ' repmat('%6d  ',1,numclust) '\n'], [iter numIt DTfac(:)' clustnumel]);
   if verbose
     fprintf([reverseStr, msg]);
   end
