@@ -8,17 +8,36 @@ function [cfg]=bg_SWM(cfg, dat)
 % .fitlen: the length of the sliding windows in timestamp units
 % 
 % Optional fields (they all have a default value):
-% .numIt: the number of iterations the algorithm will run through.
-%         (default = 1e4)
-% .guard: the minimal space between the starts of two succesive windows.
-%         Also determins the number of windows.
-%         (default = .fitlen/1.5)
-% .PT:    number of parallel temperatures 
-%         (default = 1)
-% .Tfac:  Temperatures used in the PT sampling algorithm. This overrides
-%         .PT to numel(.Tfac). 
-%         (default= logspace(-1,3,.PT))
-
+% .numIt:     the number of iterations the algorithm will run through.
+%             (default = 1e4)
+% .guard:     the minimal space between the starts of two succesive windows.
+%             Also determins the number of windows.
+%             (default = .fitlen/1.5)
+% .PT:        number of parallel temperatures 
+%             (default = 1)
+% .Tfac:      Temperatures used in the PT sampling algorithm. This overrides
+%             .PT to numel(.Tfac). 
+%             (default = logspace(-1,3,.PT))
+% .konstant:  Bolzmann constant used in determining whether two
+%             temperatures should be exchanged.
+%             (default = 1e-3)
+% 
+% Note: good values for .Tfac and .konstant depend on the scaling of your
+% data and the signal to noise level
+% 
+% .numclust:  number of shapes (=clusters) to find
+%             (default = 1)
+% 
+% .fullOutput:Flag to determine wheter the function should output the full
+%             trajectory of the cost function, or just a undersampled 
+%             version of it. Useful for debugging or checking the effect of
+%             chaning the temperature parameters
+%             (default = 0)
+% .debug:     Flag to determine wheter the algorithm should run in debug
+%             mode. In debug mode, algorithm will only initilize one
+%             temperature and then overwrite all the others. This speeds up
+%             initilization of the algorithm and is therefore useful during
+%             debugging.
 
 
 % load data from file instead of from function input
@@ -89,8 +108,8 @@ end
 if isfield(cfg,'konstant')
   konstant=cfg.konstant;
 else
-  konstant=1;
-  cfg.konstant=1;
+  konstant=1e-3;
+  cfg.konstant=konstant;
 end
 
 if isfield(cfg,'debug')
@@ -112,7 +131,6 @@ if isfield(cfg,'Tfac')
   cfg.PT=PT;
 else
   Tfac=logspace(-1,3,PT);
-  Tfac=Tfac(1:end-1);
 end
 
 if isfield(cfg,'loc')
@@ -125,7 +143,7 @@ else
     if ~debug || n<2
     loc{n}=initloc(guard,fitlen,dat);
     else
-      loc{n}=loc{1};
+      loc{n}=loc{end};
     end
   end
   tloc=loc{end};
@@ -498,16 +516,7 @@ while iter<numIt %&&  cc<cclim
      
     end
     
-%       clustIDdum=nan(cfg.numtemplates,1);
-%       for n=1:numclust;
-%         
-%         clustIDdum(clust{n,T}.linidx)=n;
-%         
-%       end
-%       
-%       if sum(clustID(:,T)-clustIDdum) ~= 0
-%         disp('help')
-%       end
+
     
     
   end
@@ -533,52 +542,6 @@ while iter<numIt %&&  cc<cclim
     swapcount=0;
   end
   
-%   %every 1000 iteration recalculate cost explicitly to get around accuracy problems
-%   if iterrecalc==1e3; 
-%     iterrecalc=0;
-%     N=fitlen;
-%     for T=1:PT
-%       D(T)=comcost(T);
-%       for n=1:numclust
-%         N_c=clust{n,T}.numtemplates;
-%         z_isum=sum(z_i{T}(clust{n,T}.linidx,:),1);
-%         clust{n,T}.z_isum=z_isum;
-%         clust{n,T}.tempcost=(N_c^2*N/(N_c-1))-(z_isum*z_isum.')/(N_c-1);
-%         
-%         
-%         D(T)=D(T)+clust{n,T}.tempcost;
-%       end
-%     end
-%   end
-%   
-  
-  
-  %   if Tchangecount==2e3 %check for downgoing trend every 2000 iterations
-  %     Tchangecount=0;
-  %     iterchange=[iterchange(2) iter]; %keep track of when this adjustment happens
-  %     for T=1:PT
-  %       icostmean(T,:)=[icostmean(T,2) nanmean(totcost(T,iterchange(1):iterchange(2)),2)];
-  %       icostsd(T,:)=[icostsd(T,2) nanstd(detrend(totcost(T,iterchange(1):iterchange(2))))];
-  %
-  %       %check whether the cost has decreased significantly
-  %       if -diff(icostmean(T,:))<icostsd(T,2)
-  %         if Ttoken(T)
-  %           cc(T)=inf; %end algorithm, because previous temperature change did not help
-  %           Tfac(T)=Tfac(T)+1/icostsd(T,2);
-  %         else %change temperature;
-  %           Tfac(T)=Tfac(T)+1/icostsd(T,2);
-  %           Ttoken(T)=1;
-  %         end
-  %       else
-  %         Ttoken(T)=0;
-  %       end
-  %
-  %       if icostsd(T,2)>0 && icostsd(T,2)^2*Tfac(T) < 1e-3*icostmean(T,2)
-  %         cc(T)=nan;
-  %       end
-  %     end
-  %   end
-  
   
   DTfac=[D; Tfac; cc];
   msg=sprintf([' # iterations: %d/%d\n cc =\n cost =           Tfac =         cc =\n' repmat('  %E     %1.4E  %8d\n',1, PT) '\n Best clustering:\n ' repmat('%6d  ',1,numclust) '\n'], [iter numIt DTfac(:)' clustnumel]);
@@ -586,13 +549,11 @@ while iter<numIt %&&  cc<cclim
     fprintf([reverseStr, msg]);
   end
   reverseStr = repmat(sprintf('\b'), 1, length(msg));
-  
-  %   dum=loc{end}(:,1:end-1);
-  %   minTloc(:,iter)=dum(:);
+
 end
 
 
-% % cfg.minTloc=minTloc;
+
 
 totcost=totcost(:,1:iter);
 
@@ -657,20 +618,7 @@ cfg=orderfields(cfg);
 
 
 
-% if nargout>1
-%   s=cell(PT,1);
-%   s(:)={nan(numtemplates,fitlen)};
-%   z_s=s;
-%   for T=1:PT
-%     for n=1:numtemplates
-%       [trl tidx]=ind2sub([numtrl,numtemp],n);
-%       s{T}(n,:)=dat(trl,loc{T}(trl,tidx):loc{T}(trl,tidx)+fitlen-1);
-%       z_s{T}(n,:)=(s{T}(n,:)-mean(s{T}(n,:)))/std(s{T}(n,:),1);
-%     end
-%     
-%   end
-%   
-% end
+
 
 
 % cleanup
