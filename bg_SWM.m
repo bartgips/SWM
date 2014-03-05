@@ -600,7 +600,7 @@ catch
   cfg.totcost=totcost.';
 end
 cfg.finalcost=totcost(:,end);
-cfg.cc=cc;
+% cfg.cc=cc;
 cfg.Tfac=(Tfac);
 cfg.comcost=comcost;
 cfg.icomcost=icomcost;
