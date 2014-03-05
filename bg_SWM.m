@@ -8,6 +8,7 @@ function [cfg]=bg_SWM(cfg, dat)
 % .fitlen: the length of the sliding windows in timestamp units
 % 
 % Optional fields (they all have a default value):
+% CORE PARAMETERS
 % .fname:     path and filename of the .mat-file that contains the data on
 %             which the algorithms must be applied.
 % .varname:   the name of the variable within .fname tha actually contains
@@ -29,9 +30,17 @@ function [cfg]=bg_SWM(cfg, dat)
 % Note: good values for .Tfac and .konstant depend on the scaling of your
 % data and the signal to noise level
 % 
+% OPTIONAL PARAMETERS
 % .numclust:  number of shapes (=clusters) to find
 %             (default = 1)
-% 
+% .Fbp:       Bandpass frequency range. Usage: [hp lp]
+%             When .Fbp is supplied, the function first applies a bandpass
+%             filter to the data before performing the SWM
+% .Fbs:       Bandstop frequency range. Usage: [lp hp]
+%             When .Fbs is supplied, the function first applies a bandstop
+%             filter to the data before performing the SWM
+%
+% FLAGS
 % .fullOutput:Flag to determine wheter the function should output the full
 %             trajectory of the cost function, or just a undersampled 
 %             version of it. Useful for debugging or checking the effect of
