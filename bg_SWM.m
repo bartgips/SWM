@@ -43,7 +43,7 @@ function [cfg]=bg_SWM(cfg, dat)
 % Note: good values for .Tfac and .konstant depend on the scaling of your
 % data and the signal to noise level
 %
-% OPTIONAL PARAMETERS
+% MISC PARAMETERS
 % .numclust:  number of shapes (=clusters) to find
 %             (default = 1)
 % .fs:        Sampling rate of dataset. Needed when using .Fbp or .Fbs
@@ -78,15 +78,23 @@ function [cfg]=bg_SWM(cfg, dat)
 % default values used during the algorithm run)
 %
 % Important fields:
-% .best_s:    Contains the best mean shape for every cluster.
-
+% .best_s:        Contains the best mean shape for every cluster.
+% .best_z:        Contains the best mean shape for every cluster; but after 
+%                 individual z-scoring (the algorithm uses this for calculating
+%                 the cost function.
+% .totcost:       The trajectories of the cost function for every temperature
+%                 seperately. Only given when cfg.fullOutput=1.
+% .totcost_unSamp:As above, but undersampled by a factor 100 to save
+%                 diskspace. given when cfg.fullOutput=0;
+% .totcost_end:   The cost values, but only for the final 2000 iterations. 
+%                 Given when cfg.fullOutput=0;
 
 %% check validity of input fields
 validInp={'best_s';'best_z';'bestclust';'bestclustID';'bestloc';'clust';...
   'cm';'comcost';'costdistr';'debug';'Fbs';'Fbp';'Fhp';'Flp';'finalcost';'fitlen';...
   'fname';'fs';'fullOutput';'guard';'icomcost';'konstant';'loc';'mincost';...
   'nPT';'numclust';'numIt';'numIter';'numtemplates';'numWin';'ratio';'Tfac';...
-  'totcost';'varname';'verbose';};
+  'totcost';'totcost_end';'totcost_undSamp';'varname';'verbose';};
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
