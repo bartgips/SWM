@@ -1,8 +1,20 @@
-function [z, s, cfg]=extract_shapes_symm(dat,cfg)
-% [z, s, cfg]=extract_shapes_symm(dat,cfg)
+function [z, s, cfg]=bg_swm_extract(cfg,dat)
+% [z, s, cfg]=bg_swm_extract(dat,cfg)
+%
+% input:
+% cfg:    output from bg_SWM
+%         can contain optional new field: .newlen;
+%         this is the length of the windows that should be cut out of the
+%         dataset (symetrically around the orignal window positions)
+%   
+% dat:    optional; data that the cfg belongs to. (only relevant if cfg
+%         does not contain .varname and .fname
+% 
+% 
+% 
+% last edit: 6 March 2014
 
 if nargin<2
-  cfg=dat;
   dum=load(cfg.fname, cfg.varname);
   eval(['dat=dum.' cfg.varname ';'])
 else

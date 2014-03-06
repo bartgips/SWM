@@ -1,2 +1,4 @@
 # ignore matlab autosave backup files
 *.m~
+*~
+version*

@@ -48,10 +48,12 @@ function [cfg]=bg_SWM(cfg, dat)
 %             (default = 1)
 % .fs:        Sampling rate of dataset. Needed when using .Fbp or .Fbs
 %             below
-% .Fbp:       Bandpass frequency range. Usage: [hp lp]
+% .Fbp:       Bandpass frequency range. Usage: [hp lp] (rowvector; multiple
+%             rows will apply multiple filters)
 %             When .Fbp is supplied, the function first applies a bandpass
 %             filter to the data before performing the SWM
-% .Fbs:       Bandstop frequency range. Usage: [lp hp]
+% .Fbs:       Bandstop frequency range. Usage: [lp hp] (rowvector; multiple
+%             rows will apply multiple filters)
 %             When .Fbs is supplied, the function first applies a bandstop
 %             filter to the data before performing the SWM
 %
@@ -98,7 +100,12 @@ if isfield(cfg,'Fbp')
     error('Sampling rate missing. Bandpass filter is not possible without cfg.fs')
   end
   Fbp=cfg.Fbp;
-  dat=ft_preproc_bandpassfilter(dat, fs, Fbp);
+  if iscolumn(Fbp)
+    Fbp=Fbp';
+  end
+  for band=1:size(Fbp,1)
+  dat=ft_preproc_bandpassfilter(dat, fs, Fbp(band,:));
+  end
 end
 
 if isfield(cfg,'Fbs')
@@ -108,7 +115,13 @@ if isfield(cfg,'Fbs')
     error('Sampling rate missing. Bandstop filter is not possible without cfg.fs')
   end
   Fbs=cfg.Fbs;
-  dat=ft_preproc_bandstopfilter(dat, fs, Fbs);
+  if iscolumn(Fbp)
+    Fbs=Fbs';
+  end
+  for band=1:size(Fbp,1)
+    dat=ft_preproc_bandpassfilter(dat, fs, Fbs(band,:));
+  end
+  
 end
 
 % dat : mxn : m trials, n time points
