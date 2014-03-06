@@ -56,6 +56,8 @@ function [cfg]=bg_SWM(cfg, dat)
 %             rows will apply multiple filters)
 %             When .Fbs is supplied, the function first applies a bandstop
 %             filter to the data before performing the SWM
+% .Fhp:       High-Pass cut-off frequency. use as above.
+% .Flp:       Low-Pass cut-off frequency. use as above.
 %
 % FLAGS
 % .fullOutput:Flag to determine wheter the function should output the full
@@ -79,6 +81,22 @@ function [cfg]=bg_SWM(cfg, dat)
 % .best_s:    Contains the best mean shape for every cluster.
 
 
+%% check validity of input fields
+validInp={'best_s';'best_z';'bestclust';'bestclustID';'bestloc';'clust';...
+  'cm';'comcost';'costdistr';'debug';'Fbs';'Fbp';'Fhp';'Flp';'finalcost';'fitlen';...
+  'fname';'fs';'fullOutput';'guard';'icomcost';'konstant';'loc';'mincost';...
+  'nPT';'numclust';'numIt';'numIter';'numtemplates';'numWin';'ratio';'Tfac';...
+  'totcost';'varname';'verbose';};
+inpFields=fieldnames(cfg);
+
+if any(~ismember(inpFields,validInp))
+badInp=inpFields(~ismember(inpFields,validInp));
+warning(sprintf(['Some fields in input cfg structure are invalid and are ignored:\n' repmat('  .%s\n',1,numel(badInp))],badInp{:}));
+end
+
+
+
+%% loading data
 % load data from file instead of from function input
 if nargin<2
   dum=load(cfg.fname, cfg.varname);
@@ -93,6 +111,8 @@ if iscolumn(dat);
   dat=dat.';
 end
 
+
+%% preprocessing (filtering)
 if isfield(cfg,'Fbp')
   if isfield(cfg,'fs')
     fs=cfg.fs;
@@ -115,15 +135,41 @@ if isfield(cfg,'Fbs')
     error('Sampling rate missing. Bandstop filter is not possible without cfg.fs')
   end
   Fbs=cfg.Fbs;
-  if iscolumn(Fbp)
+  if iscolumn(Fbs)
     Fbs=Fbs';
   end
-  for band=1:size(Fbp,1)
-    dat=ft_preproc_bandpassfilter(dat, fs, Fbs(band,:));
-  end
-  
+  for band=1:size(Fbs,1)
+    dat=ft_preproc_bandstopfilter(dat, fs, Fbs(band,:));
+  end  
 end
 
+if isfield(cfg,'Fhp')
+  if isfield(cfg,'fs')
+    fs=cfg.fs;
+  else
+    error('Sampling rate missing. High-pass filter is not possible without cfg.fs')
+  end
+  Fhp=cfg.Fhp;
+  Fhp=Fhp(:);
+  for freq=1:size(Fhp,1)
+    dat=ft_preproc_highpassfilter(dat, fs, Fhp(freq));
+  end  
+end
+
+if isfield(cfg,'Flp')
+  if isfield(cfg,'fs')
+    fs=cfg.fs;
+  else
+    error('Sampling rate missing. Low-pass filter is not possible without cfg.fs')
+  end
+  Flp=cfg.Flp;
+  Flp=Flp(:);
+  for freq=1:size(Flp,1)
+    dat=ft_preproc_lowpassfilter(dat, fs, Flp(freq));
+  end  
+end
+
+%%
 % dat : mxn : m trials, n time points
 % 2*guard should be bigger than fitlen
 if isfield(cfg,'fitlen')
