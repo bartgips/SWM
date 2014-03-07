@@ -92,7 +92,7 @@ function [cfg]=bg_SWM(cfg, dat)
 %% check validity of input fields
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
   'cm';'costCoM';'costDistr';'debug';'Fbs';'Fbp';'Fhp';'Flp';'costFinal';'fitlen';...
-  'fname';'fs';'fullOutput';'guard';'costCoM_i';'konstant';'loc';'mincost';...
+  'fname';'fs';'fullOutput';'guard';'costCoM_i';'konstant';'loc';'costMin';...
   'nPT';'numClust';'numIt';'numIter';'numTemplates';'numWin';'ratio';'Tfac';...
   'costTotal';'totcost_end';'totcost_undSamp';'varname';'verbose';};
 inpFields=fieldnames(cfg);
@@ -445,10 +445,10 @@ clustnumel=nan(1,numClust);
 %%%%% Main optimization loop
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 iter=1;
-mincost=D;
+costMin=D;
 mincostTot=min(D);
 costTotal=nan(nPT,numIt);
-costTotal(:,1)=mincost;
+costTotal(:,1)=costMin;
 
 cc=zeros(1,nPT);
 
@@ -561,12 +561,12 @@ while iter<numIt %&&  cc<cclim
         costCoM(T)=costCoM(T)+ncomcost-pcomcost;
         cm(lidx,T)=ncm;
         
-        if mincost(T)>D(T)
+        if costMin(T)>D(T)
           if mincostTot>D(T);
             mincostTot=D(T);
             tloc=loc{T};
           end
-          mincost(T)=D(T);
+          costMin(T)=D(T);
           cc(T)=0;
         else
           cc(T)=cc(T)+1;
@@ -631,7 +631,7 @@ while iter<numIt %&&  cc<cclim
         clust{clustidx,T}.tidx=clust{clustidx,T}.tidx(~relidx);
         D(T)=D(T)-cVal;
         
-        if mincost(T)>D(T)
+        if costMin(T)>D(T)
           if mincostTot>D(T);
             mincostTot=D(T);
             tloc=loc{T};
@@ -641,7 +641,7 @@ while iter<numIt %&&  cc<cclim
               clustnumel(nn)=tclust{nn}.numTemplates;
             end
           end
-          mincost(T)=D(T);
+          costMin(T)=D(T);
           cc(T)=0;
         else
           cc(T)=cc(T)+1;
@@ -691,7 +691,7 @@ catch
   cfg.costTotal=costTotal.';
 end
 cfg.costFinal=costTotal(:,end);
-cfg.mincost=mincostTot;
+cfg.costMin=mincostTot;
 % if needed, CoM cost
 if ratio>0
   cfg.costCoM=costCoM;
