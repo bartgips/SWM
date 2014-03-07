@@ -92,3 +92,19 @@ else
   end
   z=zscore(s,1,2);
 end
+
+
+function z=zscore(x,flag,dim)
+% 
+if nargin<3
+  dim=1;
+end
+if nargin<2
+  flag=0;
+end
+
+sdx=std(x,flag,dim);
+mux=mean(x,dim);
+
+z=bsxfun(@minus,x,mux);
+z=bsxfun(@rdivide,z,sdx);
