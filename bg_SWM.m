@@ -44,7 +44,7 @@ function [cfg]=bg_SWM(cfg, dat)
 % data and the signal to noise level
 %
 % MISC PARAMETERS
-% .numclust:  number of shapes (=clusters) to find
+% .numClust:  number of shapes (=clusters) to find
 %             (default = 1)
 % .fs:        Sampling rate of dataset. Needed when using .Fbp or .Fbs
 %             below
@@ -82,7 +82,7 @@ function [cfg]=bg_SWM(cfg, dat)
 % .best_z:        Contains the best mean shape for every cluster; but after 
 %                 individual z-scoring (the algorithm uses this for calculating
 %                 the cost function.
-% .totcost:       The trajectories of the cost function for every temperature
+% .costTotal:     The trajectories of the cost function for every temperature
 %                 seperately. Only given when cfg.fullOutput=1.
 % .totcost_unSamp:As above, but undersampled by a factor 100 to save
 %                 diskspace. given when cfg.fullOutput=0;
@@ -90,11 +90,11 @@ function [cfg]=bg_SWM(cfg, dat)
 %                 Given when cfg.fullOutput=0;
 
 %% check validity of input fields
-validInp={'best_s';'best_z';'bestclust';'bestclustID';'bestloc';'clust';...
-  'cm';'comcost';'costdistr';'debug';'Fbs';'Fbp';'Fhp';'Flp';'finalcost';'fitlen';...
-  'fname';'fs';'fullOutput';'guard';'icomcost';'konstant';'loc';'mincost';...
-  'nPT';'numclust';'numIt';'numIter';'numtemplates';'numWin';'ratio';'Tfac';...
-  'totcost';'totcost_end';'totcost_undSamp';'varname';'verbose';};
+validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
+  'cm';'costCoM';'costDistr';'debug';'Fbs';'Fbp';'Fhp';'Flp';'costFinal';'fitlen';...
+  'fname';'fs';'fullOutput';'guard';'costCoM_i';'konstant';'loc';'mincost';...
+  'nPT';'numClust';'numIt';'numIter';'numTemplates';'numWin';'ratio';'Tfac';...
+  'costTotal';'totcost_end';'totcost_undSamp';'varname';'verbose';};
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
@@ -119,8 +119,21 @@ if iscolumn(dat);
   dat=dat.';
 end
 
+nanSel=isnan(dat);
+nanFlag=any(nanSel(:));
+if nanFlag
+  warning(['Data contains ' num2str(round(sum(nanSel(:))/numel(nanSel)*100)) '% NaNs. Correct convergence is not guaranteed.'])
+end
+
 
 %% preprocessing (filtering)
+
+% first temporarily change NaNs to zero's such that filtering works
+if nanFlag && any(isfield(cfg,{'Fbp','Fbs','Fhp','Flp'}))
+  dat(nanSel)=0;
+  warning('Temporarily changing NaNs to zeros to make filtering possible');
+end
+
 if isfield(cfg,'Fbp')
   if isfield(cfg,'fs')
     fs=cfg.fs;
@@ -176,6 +189,9 @@ if isfield(cfg,'Flp')
     dat=ft_preproc_lowpassfilter(dat, fs, Flp(freq));
   end
 end
+
+% change back to NaNs
+dat(nanSel)=nan;
 
 %%
 % dat : mxn : m trials, n time points
@@ -244,6 +260,7 @@ else
   numWin=0;
 end
 
+% initialize/read window locations
 if isfield(cfg,'loc')
   loc=cfg.loc;
   if numel(loc)~= nPT || size(loc{1},1)~=size(dat,1)
@@ -266,22 +283,22 @@ else
   cfg.numWin=numWin;
 end
 
-if isfield(cfg,'bestloc')
-  loc{end}=cfg.bestloc;
+if isfield(cfg,'best_loc')
+  loc{end}=cfg.best_loc;
 end
 
-if isfield(cfg,'numclust')
-  numclust=cfg.numclust;
+if isfield(cfg,'numClust')
+  numClust=cfg.numClust;
 else
-  cfg.numclust=1;
-  numclust=1;
+  cfg.numClust=1;
+  numClust=1;
 end
 
 if isfield(cfg,'clust')
-  initclust=0;
+  clustInit=0;
   clust=cfg.clust;
 else
-  initclust=1;
+  clustInit=1;
 end
 
 if isfield(cfg,'verbose')
@@ -297,19 +314,20 @@ else
   cfg.fullOutput=fullOutput;
 end
 
+%% Initialization
 
 % find the number of sample vectors/templates
-numtrl=size(dat,1);
-numtemplates=numWin*numtrl;
-cfg.numtemplates=numtemplates;
+numTrl=size(dat,1);
+numTemplates=numWin*numTrl;
+cfg.numTemplates=numTemplates;
 
 % construct sample vectors
 z_i=cell(1,nPT);
-z_i(:)={nan(numtemplates,fitlen)};
-icomcost=nan(numtemplates,nPT); %CoM cost of individual windows
+z_i(:)={nan(numTemplates,fitlen)};
+costCoM_i=nan(numTemplates,nPT); %CoM cost of individual windows
 
-cm=icomcost;
-comcost=nan(1,nPT);
+cm=costCoM_i;
+costCoM=nan(1,nPT);
 if verbose
   fprintf('\nInitializing sample vectors...')
 end
@@ -317,74 +335,74 @@ reverseStr='';
 
 for T=1:nPT
   if T<2 || ~debug
-    for n=1:numtemplates
-      [trldum idxdum]=ind2sub([numtrl,numWin],n);
+    for n=1:numTemplates
+      [trldum idxdum]=ind2sub([numTrl,numWin],n);
       s_i=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+fitlen-1);
       z_i{T}(n,:)=(s_i(:)-nanmean(s_i(:)))/nanstd(s_i(:),1);
       
-      msg=sprintf('\n Temperature %d \n Template %d/%d', [T n numtemplates]);
+      msg=sprintf('\n Temperature %d \n Template %d/%d', [T n numTemplates]);
       if verbose
         fprintf([reverseStr, msg]);
       end
       reverseStr = repmat(sprintf('\b'), 1, length(msg));
       
       if ratio>0
-        [icomcost(n,T) cm(n,T)]=com(z_i{T}(n,:),ratio);
+        [costCoM_i(n,T) cm(n,T)]=com(z_i{T}(n,:),ratio);
       else
-        icomcost(n,T)=0;
+        costCoM_i(n,T)=0;
         cm(n,T)=nan;
       end
       
     end
   else
     z_i{T}=z_i{1};
-    icomcost(:,T)=icomcost(:,1);
+    costCoM_i(:,T)=costCoM_i(:,1);
     cm(:,T)=cm(n,1);
   end
-  comcost(T)=sum(icomcost(:,T));
+  costCoM(T)=sum(costCoM_i(:,T));
 end
 
 
-if initclust
-  clust=cell(numclust,nPT);
-  clustID=nan(numtemplates,T);
-  tempperclust=round(numtemplates/numclust);
+if clustInit
+  clust=cell(numClust,nPT);
+  clustID=nan(numTemplates,T);
+  tempperclust=round(numTemplates/numClust);
   for T=1:nPT
     % initialize clusters
-    locidx=randperm(numtemplates);
+    locidx=randperm(numTemplates);
     
-    for clustidx=1:numclust
+    for clustidx=1:numClust
       
-      if clustidx<numclust
+      if clustidx<numClust
         locidxdum=locidx(1:tempperclust);
         locidx=locidx(tempperclust+1:end);
       else
         locidxdum=locidx;
       end
       clustID(locidxdum,T)=clustidx;
-      [trldum tidxdum]=ind2sub([numtrl, numWin],locidxdum);
-      clust{clustidx,T}.linidx=locidxdum;
+      [trldum tidxdum]=ind2sub([numTrl, numWin],locidxdum);
+      clust{clustidx,T}.linIdx=locidxdum;
       clust{clustidx,T}.trl=trldum;
       clust{clustidx,T}.tidx=tidxdum;
-      clust{clustidx,T}.numtemplates=numel(locidxdum);
+      clust{clustidx,T}.numTemplates=numel(locidxdum);
       
     end
   end
   
 else %only reconstruct clust ID and initial cost
-  clustID=nan(numtemplates,nPT);
+  clustID=nan(numTemplates,nPT);
   for T=1:nPT
-    for n=1:numclust;
-      clustID(clust{n,T}.linidx,T)=n;
-      %     clust{n}.z_isum=sum(z_i(clust{n}.linidx,:),1);
+    for n=1:numClust;
+      clustID(clust{n,T}.linIdx,T)=n;
+      %     clust{n}.z_isum=sum(z_i(clust{n}.linIdx,:),1);
     end
   end
 end
 
-if isfield(cfg,'bestclust')
-  clust(:,nPT)=cfg.bestclust;
-  for n=1:numclust
-    clustID(clust{n,nPT}.linidx,nPT)=n;
+if isfield(cfg,'best_clust')
+  clust(:,nPT)=cfg.best_clust;
+  for n=1:numClust
+    clustID(clust{n,nPT}.linIdx,nPT)=n;
   end
 end
 
@@ -395,15 +413,21 @@ end
 D=zeros(1,nPT);
 N=fitlen;
 for T=1:nPT
-  D(T)=comcost(T);
-  for n=1:numclust
-    N_c=clust{n,T}.numtemplates;
-    z_isum=sum(z_i{T}(clust{n,T}.linidx,:),1);
+  D(T)=costCoM(T);
+  for n=1:numClust
+    N_c=clust{n,T}.numTemplates;
+    z_isum=nansum(z_i{T}(clust{n,T}.linIdx,:),1);
     clust{n,T}.z_isum=z_isum;
-    clust{n,T}.tempcost=(N_c^2/(N_c-1))-(z_isum*z_isum.')/(N*(N_c-1));
+    if nanFlag
+      % correct for NaNs
+      clust{n,T}.noNanCount=sum(~isnan(z_i{T}(clust{n,T}.linIdx,:)));
+      nanFac=N_c./clust{n,T}.noNanCount;
+      clust{n,T}.tempCost=(N_c^2/(N_c-1))-((nanFac.^2.*z_isum)*z_isum.')/(N*(N_c-1));
+    else
+      clust{n,T}.tempCost=(N_c^2/(N_c-1))-(z_isum*z_isum.')/(N*(N_c-1));
+    end
     
-    
-    D(T)=D(T)+clust{n,T}.tempcost;
+    D(T)=D(T)+clust{n,T}.tempCost;
   end
 end
 
@@ -415,7 +439,7 @@ swapcount=0;
 Tchangecount=0;
 iterrecalc=1;
 rejcount=zeros(2,nPT);
-clustnumel=nan(1,numclust);
+clustnumel=nan(1,numClust);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%% Main optimization loop
@@ -423,8 +447,8 @@ clustnumel=nan(1,numclust);
 iter=1;
 mincost=D;
 mincostTot=min(D);
-totcost=nan(nPT,numIt);
-totcost(:,1)=mincost;
+costTotal=nan(nPT,numIt);
+costTotal(:,1)=mincost;
 
 cc=zeros(1,nPT);
 
@@ -442,30 +466,30 @@ while iter<numIt %&&  cc<cclim
   
   %determine to do cluster switch or window shift of sample
   pshift=.5;
-  if numclust==1 %only one cluster means: never change clusters
+  if numClust==1 %only one cluster means: never change clusters
     pshift=2;
   end
   
   for T=1:nPT
-    lidx=randval(numtemplates);
+    lidx=randval(numTemplates);
     
     clustidx=clustID(lidx,T);
     
     shift=rand<pshift;
     
     if shift %shift a window (no cluster swap)
-      [trl tidx]=ind2sub([numtrl,numWin],lidx);
+      [trl tidx]=ind2sub([numTrl,numWin],lidx);
       
-      ploc=loc{T}(trl,tidx);
-      locchange=0;
+      pLoc=loc{T}(trl,tidx);
+      locChange=0;
       loopcount=0;
-      while ~locchange && loopcount<11 %find a possible step; Brute force for maximally 10 times
+      while ~locChange && loopcount<11 %find a possible step; Brute force for maximally 10 times
         dir=((rand>0.5)-0.5)*2*randval(floor(guard/2));
-        nloc=ploc+dir;
-        locchange= nloc>0 && loc{T}(trl,tidx+1)-nloc>=guard;
+        nLoc=pLoc+dir;
+        locChange= nLoc>0 && loc{T}(trl,tidx+1)-nLoc>=guard;
         
-        if tidx>1 && locchange %check guard to the left of the sample as well
-          locchange=nloc-loc{T}(trl,tidx-1) >= guard;
+        if tidx>1 && locChange %check guard to the left of the sample as well
+          locChange=nLoc-loc{T}(trl,tidx-1) >= guard;
         end
         
         loopcount=loopcount+1;
@@ -473,18 +497,32 @@ while iter<numIt %&&  cc<cclim
       
       
       
-      if locchange %valid step is found, now evaluate change in cost function
+      if locChange %valid step is found, now evaluate change in cost function
         
-        N_c=clust{clustidx,T}.numtemplates;
+        N_c=clust{clustidx,T}.numTemplates;
         %       pcost=D(T);
-        pcost=clust{clustidx,T}.tempcost;
-        pcomcost=icomcost(lidx,T);
+        pcost=clust{clustidx,T}.tempCost;
+        pcomcost=costCoM_i(lidx,T);
         
-        s_dum=dat(trl,nloc:nloc+fitlen-1);
-        z_dum=(s_dum-mean(s_dum))/std(s_dum,1);
+        s_dum=dat(trl,nLoc:nLoc+fitlen-1);
+        z_dum=(s_dum-nanmean(s_dum))/nanstd(s_dum,1);
         
-        z_sumdum=clust{clustidx,T}.z_isum-z_i{T}(lidx,:)+z_dum;
-        ncost=(N_c^2/(N_c-1))-(z_sumdum*z_sumdum.')/(fitlen*(N_c-1));
+        if nanFlag
+          pZ=z_i{T}(lidx,:);
+          pZ(isnan(pZ))=0;
+          nZ=z_dum;
+          nZ(isnan(nZ))=0;
+          z_sumdum=clust{clustidx,T}.z_isum-pZ+nZ;
+          noNanCountdum=clust{clustidx,T}.noNanCount-isnan(z_i{T}(lidx,:))+isnan(z_dum);
+          nanFac=N_c./noNanCountdum;
+          ncost=(N_c^2/(N_c-1))-((nanFac.^2.*z_isum)*z_sumdum.')/(fitlen*(N_c-1));
+        else
+          z_sumdum=clust{clustidx,T}.z_isum-z_i{T}(lidx,:)+z_dum;
+          ncost=(N_c^2/(N_c-1))-(z_sumdum*z_sumdum.')/(fitlen*(N_c-1));
+        end
+        
+        
+        
         
         if ratio>0
           [ncomcost ncm]=com(z_dum,ratio);
@@ -511,13 +549,16 @@ while iter<numIt %&&  cc<cclim
       
       if accept
         %update everything with new values
-        loc{T}(trl,tidx)=nloc;
+        loc{T}(trl,tidx)=nLoc;
         clust{clustidx,T}.z_isum=z_sumdum;
-        clust{clustidx,T}.tempcost=ncost;
+        if nanFlag
+          clust{clustidx,T}.noNanCount=noNanCountdum;
+        end
+        clust{clustidx,T}.tempCost=ncost;
         D(T)=D(T)-cVal;
         z_i{T}(lidx,:)=z_dum;
-        icomcost(lidx,T)=ncomcost;
-        comcost(T)=comcost(T)+ncomcost-pcomcost;
+        costCoM_i(lidx,T)=ncomcost;
+        costCoM(T)=costCoM(T)+ncomcost-pcomcost;
         cm(lidx,T)=ncm;
         
         if mincost(T)>D(T)
@@ -536,17 +577,29 @@ while iter<numIt %&&  cc<cclim
       
       
     else %cluster swap instead of window shift
-      relidx=clust{clustidx,T}.linidx==lidx;
-      nclustidx=randval(numclust);
+      relidx=clust{clustidx,T}.linIdx==lidx;
+      nclustidx=randval(numClust);
       while nclustidx == clustidx
-        nclustidx=randval(numclust);
+        nclustidx=randval(numClust);
       end
-      pcost=clust{clustidx,T}.tempcost+clust{nclustidx,T}.tempcost;
+      pcost=clust{clustidx,T}.tempCost+clust{nclustidx,T}.tempCost;
+      
+      N_c=[clust{clustidx,T}.numTemplates clust{nclustidx,T}.numTemplates]+[-1 1];      
       
       
-      z_sumdum=[clust{clustidx,T}.z_isum-z_i{T}(lidx,:); clust{nclustidx,T}.z_isum+z_i{T}(lidx,:)];
-      z2dum=[z_sumdum(1,:)*z_sumdum(1,:).' z_sumdum(2,:)*z_sumdum(2,:).'];
-      N_c=[clust{clustidx,T}.numtemplates clust{nclustidx,T}.numtemplates]+[-1 1];
+      if nanFlag
+        cZ=z_i{T}(lidx,:);
+        cZ(isnan(cZ))=0;
+        z_sumdum=[clust{clustidx,T}.z_isum-cZ; clust{nclustidx,T}.z_isum+cZ];
+        
+        noNanCountdum=[clust{clustidx,T}.noNanCount-isnan(z_i{T}(lidx,:)); clust{nclustidx,T}.noNanCount+isnan(z_i{T}(lidx,:))];
+        nanFac=bsxfun(@rdivide,N_c.',noNanCountdum);
+        z2dum=[(nanFac(1,:).^2.*z_sumdum(1,:))*z_sumdum(1,:).' (nanFac(2,:).^2.*z_sumdum(2,:))*z_sumdum(2,:).'];
+      else
+        z_sumdum=[clust{clustidx,T}.z_isum-z_i{T}(lidx,:); clust{nclustidx,T}.z_isum+z_i{T}(lidx,:)];
+        z2dum=[z_sumdum(1,:)*z_sumdum(1,:).' z_sumdum(2,:)*z_sumdum(2,:).'];
+      end
+
       ncost=((N_c.^2./(N_c-1))-z2dum./(fitlen*(N_c-1)));
       cVal=pcost-sum(ncost);
       
@@ -564,14 +617,14 @@ while iter<numIt %&&  cc<cclim
       if accept
         %update everything
         clustID(lidx,T)=nclustidx;
-        clust{clustidx,T}.linidx=clust{clustidx,T}.linidx(~relidx);
-        clust{nclustidx,T}.linidx=[clust{nclustidx,T}.linidx lidx];
+        clust{clustidx,T}.linIdx=clust{clustidx,T}.linIdx(~relidx);
+        clust{nclustidx,T}.linIdx=[clust{nclustidx,T}.linIdx lidx];
         clust{clustidx,T}.z_isum=z_sumdum(1,:);
         clust{nclustidx,T}.z_isum=z_sumdum(2,:);
-        clust{clustidx,T}.tempcost=ncost(1);
-        clust{nclustidx,T}.tempcost=ncost(2);
-        clust{clustidx,T}.numtemplates=clust{clustidx,T}.numtemplates-1;
-        clust{nclustidx,T}.numtemplates=clust{nclustidx,T}.numtemplates+1;
+        clust{clustidx,T}.tempCost=ncost(1);
+        clust{nclustidx,T}.tempCost=ncost(2);
+        clust{clustidx,T}.numTemplates=clust{clustidx,T}.numTemplates-1;
+        clust{nclustidx,T}.numTemplates=clust{nclustidx,T}.numTemplates+1;
         clust{nclustidx,T}.trl=[clust{nclustidx,T}.trl clust{clustidx,T}.trl(relidx)];
         clust{nclustidx,T}.tidx=[clust{nclustidx,T}.tidx clust{clustidx,T}.tidx(relidx)];
         clust{clustidx,T}.trl=clust{clustidx,T}.trl(~relidx);
@@ -584,8 +637,8 @@ while iter<numIt %&&  cc<cclim
             tloc=loc{T};
             tclustID=clustID(:,T);
             tclust=clust(:,T);
-            for nn=1:numclust
-              clustnumel(nn)=tclust{nn}.numtemplates;
+            for nn=1:numClust
+              clustnumel(nn)=tclust{nn}.numTemplates;
             end
           end
           mincost(T)=D(T);
@@ -599,7 +652,7 @@ while iter<numIt %&&  cc<cclim
     end
   end
   
-  totcost(:,iter)=D;
+  costTotal(:,iter)=D;
   
   % Every couple of iterations, try a state swap between two randomly
   % chosen, but neighbouring temperatures
@@ -609,8 +662,8 @@ while iter<numIt %&&  cc<cclim
     pswap=exp(1/konstant*diff(1./Tfac(Tswap))*diff(D(Tswap)));
     if rand < pswap;
       D(fliplr(Tswap))=D(Tswap);
-      comcost(fliplr(Tswap))=comcost((Tswap));
-      icomcost(:,fliplr(Tswap))=icomcost(:,(Tswap));
+      costCoM(fliplr(Tswap))=costCoM((Tswap));
+      costCoM_i(:,fliplr(Tswap))=costCoM_i(:,(Tswap));
       loc(fliplr(Tswap))=loc(Tswap);
       z_i(fliplr(Tswap))=z_i(Tswap);
       clust(:,fliplr(Tswap))=clust(:,(Tswap));
@@ -620,7 +673,7 @@ while iter<numIt %&&  cc<cclim
   end
   
   DTfac=[D; Tfac; cc];
-  msg=sprintf([' # iterations: %d/%d\n\n cost =           Tfac =         cc =\n' repmat('  %E     %1.4E  %8d\n',1, nPT) '\n Best clustering:\n ' repmat('%6d  ',1,numclust) '\n'], [iter numIt DTfac(:)' clustnumel]);
+  msg=sprintf([' # iterations: %d/%d\n\n cost =           Tfac =    LastAccept =\n' repmat('  %E     %1.4E    %8d\n',1, nPT) '\n Best clustering:\n ' repmat('%6d  ',1,numClust) '\n'], [iter numIt DTfac(:)' clustnumel]);
   if verbose
     fprintf([reverseStr, msg]);
   end
@@ -628,42 +681,42 @@ while iter<numIt %&&  cc<cclim
   
 end
 
-totcost=totcost(:,1:iter);
+costTotal=costTotal(:,1:iter);
 
 %% create final output structure
 % append the cost to previous run if possible
 try
-  cfg.totcost=[cfg.totcost; totcost.'];
+  cfg.costTotal=[cfg.costTotal; costTotal.'];
 catch
-  cfg.totcost=totcost.';
+  cfg.costTotal=costTotal.';
 end
-cfg.finalcost=totcost(:,end);
+cfg.costFinal=costTotal(:,end);
 cfg.mincost=mincostTot;
 % if needed, CoM cost
 if ratio>0
-  cfg.comcost=comcost;
-  cfg.icomcost=icomcost;
+  cfg.costCoM=costCoM;
+  cfg.costCoM_i=costCoM_i;
   cfg.cm=cm;
 end
 
-% make bestloc, only if improvement has been found
+% make best_loc, only if improvement has been found
 try
-  cfg.bestloc=tloc;
+  cfg.best_loc=tloc;
 catch
-  cfg.bestloc=nan;
+  cfg.best_loc=nan;
   tloc=loc{end};
 end
 try
-  cfg.bestclustID=tclustID;
+  cfg.best_clustID=tclustID;
 catch
-  cfg.bestclustID=clustID(:,end);
+  cfg.best_clustID=clustID(:,end);
 end
 
 % make best clustering, only if improvement has been found
 try
-  cfg.bestclust=tclust;
+  cfg.best_clust=tclust;
 catch
-  cfg.bestclust=clust(:,end);
+  cfg.best_clust=clust(:,end);
 end
 
 % storing clusterings and locations for all temperatures, s.t. a second
@@ -672,7 +725,7 @@ cfg.clust=clust;
 cfg.loc=loc;
 
 if ~exist('tclust','var')
-  if numclust>1
+  if numClust>1
     warning('No improvement in clustering found.')
   end
   tclust=clust(:,nPT);
@@ -680,21 +733,21 @@ end
 
 % calculating the final shape (note this is after preprocessing, so this
 % might yield different results than bg_swm_extract)
-cfg.best_s=nan(fitlen,numclust);
-cfg.best_z=nan(fitlen,numclust);
-cfg.costdistr=cell(1,numclust);
-for n=1:numclust
+cfg.best_s=nan(fitlen,numClust);
+cfg.best_z=nan(fitlen,numClust);
+cfg.costDistr=cell(1,numClust);
+for n=1:numClust
   
-  dum_s=nan(tclust{n}.numtemplates,fitlen);
-  for k=1:tclust{n}.numtemplates
+  dum_s=nan(tclust{n}.numTemplates,fitlen);
+  for k=1:tclust{n}.numTemplates
     trl=tclust{n}.trl(k);
     tidx=tclust{n}.tidx(k);
     dum_s(k,:)=dat(trl,tloc(trl,tidx):tloc(trl,tidx)+fitlen-1);
   end
-  cfg.best_s(:,n)=mean(dum_s,1);
-  cfg.best_z(:,n)=mean(bsxfun(@rdivide,bsxfun(@minus,dum_s,mean(dum_s,2)),std(dum_s,1,2)),1);
+  cfg.best_s(:,n)=nanmean(dum_s,1);
+  cfg.best_z(:,n)=nanmean(bsxfun(@rdivide,bsxfun(@minus,dum_s,mean(dum_s,2)),std(dum_s,1,2)),1);
   
-  cfg.costdistr{n}=cost_i(dum_s);
+  cfg.costDistr{n}=cost_i(dum_s);
 end
 
 % sort in alphabetical order
@@ -706,18 +759,18 @@ fieldNamesdum=fieldnames(cfg);
 cfg=orderfields(cfg,fieldNameIdx);
 
 if ~fullOutput
-  cleanFields={'cc','clust', 'loc', 'finalcost', 'costdistr', 'comcost', 'cm','icomcost'};
+  cleanFields={'cc','clust', 'loc', 'costFinal', 'costDistr', 'costCoM', 'cm','costCoM_i'};
   for nn=1:numel(cleanFields)
     try
       cfg=rmfield(cfg,cleanFields{nn});
     end
   end
   
-  % undersample totcost
-  if max(size(cfg.totcost))>2e3
-    cfg.totcost_end=cfg.totcost(end-2e3:end,:);
-    cfg.totcost_undSamp=cfg.totcost(1:1e2:end,:);
-    cfg=rmfield(cfg,'totcost');
+  % undersample costTotal
+  if max(size(cfg.costTotal))>2e3
+    cfg.totcost_end=cfg.costTotal(end-2e3:end,:);
+    cfg.totcost_undSamp=cfg.costTotal(1:1e2:end,:);
+    cfg=rmfield(cfg,'costTotal');
   end
 end
 
