@@ -3,7 +3,7 @@ function [z, s, cfg]=bg_swm_extract(cfg,dat)
 %
 % input:
 % cfg:    output from bg_SWM
-%         can contain optional new field: .newlen;
+%         can contain optional new field: .newLen;
 %         this is the length of the windows that should be cut out of the
 %         dataset (symetrically around the orignal window positions)
 %   
@@ -27,20 +27,20 @@ if iscolumn(dat)
 end
 
 
-if isfield(cfg,'newlen')
-  newlen=cfg.newlen;
+if isfield(cfg,'newLen')
+  newLen=cfg.newLen;
 else
-  newlen=cfg.fitlen;
+  newLen=cfg.fitlen;
 end
 
-if isfield(cfg,'bestloc')
-  loc=cfg.bestloc;
+if isfield(cfg,'best_loc')
+  loc=cfg.best_loc;
 else loc=cfg.loc;
 end
 fitlen=cfg.fitlen;
 
-if isfield(cfg,'bestclust')
-  cfg.clust=cfg.bestclust;
+if isfield(cfg,'best_clust')
+  cfg.clust=cfg.best_clust;
   cfg.numclust=numel(cfg.clust);
 end
 
@@ -48,21 +48,21 @@ if isfield(cfg,'clust')
   clustering=true;
   s=cell(1,cfg.numclust);
   for n=1:numel(s)
-    s{n}=nan(cfg.clust{n}.numtemplates,newlen);
+    s{n}=nan(cfg.clust{n}.numTemplates,newLen);
   end
 else
   clustering=false;
-  s=nan(cfg.numtemplates,newlen);
+  s=nan(cfg.numTemplates,newLen);
 end
 z=s;
-addlen=round(newlen-fitlen)/2;
+addlen=round(newLen-fitlen)/2;
 cfg.addlen=addlen;
-newlen=fitlen+2*addlen;
+newLen=fitlen+2*addlen;
 
 
 if clustering
   for n=1:numel(s)
-    for k=1:cfg.clust{n}.numtemplates
+    for k=1:cfg.clust{n}.numTemplates
       trl=cfg.clust{n}.trl(k);
       tidx=cfg.clust{n}.tidx(k);
       if loc(trl,tidx)+fitlen+addlen<=size(dat,2) && loc(trl,tidx)-addlen>0
@@ -78,7 +78,7 @@ if clustering
     z{n}=zscore(s{n},1,2);
   end
 else
-  for k=1:cfg.numtemplates
+  for k=1:cfg.numTemplates
     [trl, tidx]=ind2sub(size(loc(:,1:end-1)),k);
     if loc(trl,tidx)+fitlen+addlen<=size(dat,2) && loc(trl,tidx)-addlen>0
       s(k,:)=dat(trl,loc(trl,tidx)-addlen:loc(trl,tidx)+fitlen+addlen-1);

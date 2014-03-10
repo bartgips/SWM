@@ -70,6 +70,7 @@ function [cfg]=bg_SWM(cfg, dat)
 %             temperature and then overwrite all the others. This speeds up
 %             initilization of the algorithm and is therefore useful during
 %             debugging.
+% .dispPlot:
 %
 % %%%%%%%
 % OUTPUT:
@@ -79,22 +80,22 @@ function [cfg]=bg_SWM(cfg, dat)
 %
 % Important fields:
 % .best_s:        Contains the best mean shape for every cluster.
-% .best_z:        Contains the best mean shape for every cluster; but after 
+% .best_z:        Contains the best mean shape for every cluster; but after
 %                 individual z-scoring (the algorithm uses this for calculating
 %                 the cost function.
 % .costTotal:     The trajectories of the cost function for every temperature
 %                 seperately. Only given when cfg.fullOutput=1.
 % .totcost_unSamp:As above, but undersampled by a factor 100 to save
 %                 diskspace. given when cfg.fullOutput=0;
-% .totcost_end:   The cost values, but only for the final 2000 iterations. 
+% .costTotal_end:   The cost values, but only for the final 2000 iterations.
 %                 Given when cfg.fullOutput=0;
 
 %% check validity of input fields
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
-  'cm';'costCoM';'costDistr';'debug';'Fbs';'Fbp';'Fhp';'Flp';'costFinal';'fitlen';...
+  'cm';'costCoM';'costDistr';'debug';'dispPlot';'Fbs';'Fbp';'Fhp';'Flp';'costFinal';'fitlen';...
   'fname';'fs';'fullOutput';'guard';'costCoM_i';'konstant';'loc';'costMin';...
   'nPT';'numClust';'numIt';'numIter';'numTemplates';'numWin';'ratio';'Tfac';...
-  'costTotal';'totcost_end';'totcost_undSamp';'varname';'verbose';};
+  'costTotal';'costTotal_end';'costTotal_undSamp';'varname';'verbose';};
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
@@ -127,12 +128,18 @@ end
 
 
 %% preprocessing (filtering)
-
-% first temporarily change NaNs to zero's such that filtering works
-if nanFlag && any(isfield(cfg,{'Fbp','Fbs','Fhp','Flp'}))
-  dat(nanSel)=0;
-  warning('Temporarily changing NaNs to zeros to make filtering possible');
+if any(isfield(cfg,{'Fbp','Fbs','Fhp','Flp'}))
+  disp('Applying frequency filters...')
+  filttype='fir';
+  filttype='but';
+  % first temporarily change NaNs to zero's such that filtering works
+  if nanFlag
+    dat(nanSel)=0;
+    warning('Temporarily changing NaNs to zeros to make filtering possible');
+  end
 end
+
+
 
 if isfield(cfg,'Fbp')
   if isfield(cfg,'fs')
@@ -145,7 +152,7 @@ if isfield(cfg,'Fbp')
     Fbp=Fbp';
   end
   for band=1:size(Fbp,1)
-    dat=ft_preproc_bandpassfilter(dat, fs, Fbp(band,:));
+    dat=ft_preproc_bandpassfilter(dat, fs, Fbp(band,:),[],filttype);
   end
 end
 
@@ -160,7 +167,7 @@ if isfield(cfg,'Fbs')
     Fbs=Fbs';
   end
   for band=1:size(Fbs,1)
-    dat=ft_preproc_bandstopfilter(dat, fs, Fbs(band,:));
+    dat=ft_preproc_bandstopfilter(dat, fs, Fbs(band,:),[],filttype);
   end
 end
 
@@ -173,7 +180,7 @@ if isfield(cfg,'Fhp')
   Fhp=cfg.Fhp;
   Fhp=Fhp(:);
   for freq=1:size(Fhp,1)
-    dat=ft_preproc_highpassfilter(dat, fs, Fhp(freq));
+    dat=ft_preproc_highpassfilter(dat, fs, Fhp(freq),[],filttype);
   end
 end
 
@@ -186,7 +193,7 @@ if isfield(cfg,'Flp')
   Flp=cfg.Flp;
   Flp=Flp(:);
   for freq=1:size(Flp,1)
-    dat=ft_preproc_lowpassfilter(dat, fs, Flp(freq));
+    dat=ft_preproc_lowpassfilter(dat, fs, Flp(freq),[],filttype);
   end
 end
 
@@ -238,7 +245,6 @@ else
   debug=false;
 end
 
-
 if isfield(cfg,'nPT')
   nPT=cfg.nPT;
 else
@@ -253,6 +259,26 @@ else
   Tfac=logspace(-3,1,nPT);
   cfg.Tfac=Tfac;
 end
+
+if isfield(cfg,'dispPlot')
+  dispPlot=cfg.dispPlot;
+  colorOrder=hot(nPT);
+  colorOrder=bsxfun(@rdivide,colorOrder,sqrt(sum(colorOrder.^2,2)));
+  figure(999)
+  set(999,'position',[100 100 1000 600])
+  set(gcf,'DefaultAxesColorOrder',colorOrder)
+  subplot(1,2,1)
+  set(gca,'NextPlot','replacechildren')
+  xlabel('iteration')
+  ylabel('Cost')
+  plotLegend=1;
+  subplot(1,2,2)
+  set(gca,'NextPlot','replacechildren')
+  title('mean shape (lowest temperature)')  
+else
+  dispPlot=0;
+end
+
 
 if isfield(cfg,'numWin')
   numWin=cfg.numWin;
@@ -329,7 +355,7 @@ costCoM_i=nan(numTemplates,nPT); %CoM cost of individual windows
 cm=costCoM_i;
 costCoM=nan(1,nPT);
 if verbose
-  fprintf('\nInitializing sample vectors...')
+  fprintf('\nInitializing sliding windows and evaluating cost function...')
 end
 reverseStr='';
 
@@ -340,7 +366,7 @@ for T=1:nPT
       s_i=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+fitlen-1);
       z_i{T}(n,:)=(s_i(:)-nanmean(s_i(:)))/nanstd(s_i(:),1);
       
-      msg=sprintf('\n Temperature %d \n Template %d/%d', [T n numTemplates]);
+      msg=sprintf('\n Temperature %d/%d \n Template %d/%d', [T nPT n numTemplates]);
       if verbose
         fprintf([reverseStr, msg]);
       end
@@ -437,7 +463,7 @@ end
 
 swapcount=0;
 Tchangecount=0;
-iterrecalc=1;
+iterPlot=1;
 rejcount=zeros(2,nPT);
 clustnumel=nan(1,numClust);
 
@@ -459,7 +485,7 @@ end
 
 while iter<numIt %&&  cc<cclim
   iter=iter+1;
-  iterrecalc=iterrecalc+1;
+  iterPlot=iterPlot+1;
   swapcount=swapcount+1;
   Tchangecount=Tchangecount+1;
   rejcount(2,:)=rejcount(2,:)+1;
@@ -515,7 +541,7 @@ while iter<numIt %&&  cc<cclim
           z_sumdum=clust{clustidx,T}.z_isum-pZ+nZ;
           noNanCountdum=clust{clustidx,T}.noNanCount-isnan(z_i{T}(lidx,:))+isnan(z_dum);
           nanFac=N_c./noNanCountdum;
-          ncost=(N_c^2/(N_c-1))-((nanFac.^2.*z_isum)*z_sumdum.')/(fitlen*(N_c-1));
+          ncost=(N_c^2/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(fitlen*(N_c-1));
         else
           z_sumdum=clust{clustidx,T}.z_isum-z_i{T}(lidx,:)+z_dum;
           ncost=(N_c^2/(N_c-1))-(z_sumdum*z_sumdum.')/(fitlen*(N_c-1));
@@ -584,7 +610,7 @@ while iter<numIt %&&  cc<cclim
       end
       pcost=clust{clustidx,T}.tempCost+clust{nclustidx,T}.tempCost;
       
-      N_c=[clust{clustidx,T}.numTemplates clust{nclustidx,T}.numTemplates]+[-1 1];      
+      N_c=[clust{clustidx,T}.numTemplates clust{nclustidx,T}.numTemplates]+[-1 1];
       
       
       if nanFlag
@@ -599,7 +625,7 @@ while iter<numIt %&&  cc<cclim
         z_sumdum=[clust{clustidx,T}.z_isum-z_i{T}(lidx,:); clust{nclustidx,T}.z_isum+z_i{T}(lidx,:)];
         z2dum=[z_sumdum(1,:)*z_sumdum(1,:).' z_sumdum(2,:)*z_sumdum(2,:).'];
       end
-
+      
       ncost=((N_c.^2./(N_c-1))-z2dum./(fitlen*(N_c-1)));
       cVal=pcost-sum(ncost);
       
@@ -656,9 +682,9 @@ while iter<numIt %&&  cc<cclim
   
   % Every couple of iterations, try a state swap between two randomly
   % chosen, but neighbouring temperatures
-  if swapcount >= .5e3/(nPT-1);
-    Tswap=randval(nPT-1);
-    Tswap=[Tswap Tswap+1];
+  if nPT>1 && swapcount >= .5e3/(nPT);
+    Tswap=randperm(nPT,2);
+    %     Tswap=[Tswap Tswap+1];
     pswap=exp(1/konstant*diff(1./Tfac(Tswap))*diff(D(Tswap)));
     if rand < pswap;
       D(fliplr(Tswap))=D(Tswap);
@@ -667,7 +693,7 @@ while iter<numIt %&&  cc<cclim
       loc(fliplr(Tswap))=loc(Tswap);
       z_i(fliplr(Tswap))=z_i(Tswap);
       clust(:,fliplr(Tswap))=clust(:,(Tswap));
-      clustID(:,fliplr(Tswap))=clustID(:,(Tswap));      
+      clustID(:,fliplr(Tswap))=clustID(:,(Tswap));
     end
     swapcount=0;
   end
@@ -678,6 +704,23 @@ while iter<numIt %&&  cc<cclim
     fprintf([reverseStr, msg]);
   end
   reverseStr = repmat(sprintf('\b'), 1, length(msg));
+  
+  if dispPlot && iterPlot>50 % if requested; plot intermediate progress
+    iterPlot=0;
+    figure(999)
+    subplot(1,2,1)
+    plotsel=max(1,iter-5e3):iter;
+    plot(plotsel,costTotal(:,plotsel)')
+    xlim([plotsel(1) plotsel(1)+5e3-1])
+    if plotLegend
+      hleg=legend(num2str(Tfac(:)));
+      set(get(hleg,'title'),'string','Tfac')
+      plotLegend=0;
+    end
+    subplot(1,2,2)
+    plot(nanmean(z_i{1}))
+  end
+  
   
 end
 
@@ -768,8 +811,8 @@ if ~fullOutput
   
   % undersample costTotal
   if max(size(cfg.costTotal))>2e3
-    cfg.totcost_end=cfg.costTotal(end-2e3:end,:);
-    cfg.totcost_undSamp=cfg.costTotal(1:1e2:end,:);
+    cfg.costTotal_end=cfg.costTotal(end-2e3:end,:);
+    cfg.costTotal_undSamp=cfg.costTotal(1:1e2:end,:);
     cfg=rmfield(cfg,'costTotal');
   end
 end

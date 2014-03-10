@@ -57,8 +57,8 @@ skwIdx=nan(numIt,1);
 sampsz=round(frac*numTemp);
 
 % cut off sides (focus on centre theta shape +- 10%)
-[~,ax]=findpeaks(sign(sum(shapeMat(:)-mean(minmax(nanmean(shapeMat)))))*nanmean(shapeMat),'minpeakdistance',round(tempLen/3));
-brd=mean(ax)+[-1 1]*diff(ax)*.55;
+[~,ax]=findpeaks(sign(nansum(shapeMat(:)-mean(minmax(nanmean(shapeMat)))))*nanmean(shapeMat),'minpeakdistance',round(tempLen/3));
+brd=mean(ax)+[-1 1]*diff(ax([1 end]))*.55;
 brd=[max(floor(brd(1)),1) min(ceil(brd(2)),tempLen)];
 shapeMat=shapeMat(:,brd(1):brd(2));
 
