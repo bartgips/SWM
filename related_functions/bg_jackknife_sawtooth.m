@@ -95,13 +95,13 @@ for iter=1:numIt
   %% calculating SkwIdx
   
   %sawtoothfit
-  lowerBound=[0; (tempLen/4); -(tempLen/2); -inf; -.999];
-  upperBound=[10; (tempLen*3/4); (tempLen/2); inf; .999];
+  lowerBound=[0; (tempLen/4); -(tempLen/2); -inf; -.999; -inf];
+  upperBound=[10; (tempLen*3/4); (tempLen/2); inf; .999; inf];
   [X0]=fmincon(@(x)sawtoothfit(meanShape,x),X0,[],[],[],[],lowerBound,upperBound,[],fitOptions);
   skwIdx(iter)=X0(5);
   
   if nargin >2 && fignum
-    stdum=X0(1)*sawtooth(([1:numel(meanShape)]-X0(3))*2*pi/X0(2),(X0(5)+1)/2)+X0(4);
+    stdum=X0(1)*sawtooth(([1:numel(meanShape)]-X0(3))*2*pi/X0(2),(X0(5)+1)/2)+X0(4)+[1:numel(meanShape)]*X0(6);
     figure(fignum)
     plot(meanShape)
     hold on
@@ -124,8 +124,8 @@ function c=sawtoothfit(dat, lambda)
 % calculated cost function of sawtooth with parameters 'lambda' compared to
 % data.
 % 
-% lambda = [ amplitude; period; offset_x; offset_y; skewness];
+% lambda = [ amplitude; period; offset_x; offset_y; skewness; linear term];
 
 dat=dat(:);
-swth=lambda(1)*sawtooth(([1:numel(dat)]-lambda(3))*2*pi/lambda(2),(lambda(5)+1)/2)+lambda(4);
+swth=lambda(1)*sawtooth(([1:numel(dat)]-lambda(3))*2*pi/lambda(2),(lambda(5)+1)/2)+lambda(4)+lambda(6)*[1:numel(dat)];
 c=sum(((dat(:)-swth(:))).^2);

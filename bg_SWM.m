@@ -27,7 +27,7 @@ function [cfg]=bg_SWM(cfg, dat)
 %             Note: if "dat" is given as input, this is set to 'function
 %             input'
 % .varname:   the name of the variable within .fname tha actually contains
-%             the data. 
+%             the data.
 %             Note: if "dat" is given as input, this is set to 'N/A'
 % .numIt:     the number of iterations the algorithm will run through.
 %             (default = 1e4)
@@ -333,28 +333,12 @@ end
 
 if isfield(cfg,'dispPlot')
   dispPlot=cfg.dispPlot;
-  colorOrder=zeros(nPT,3);
-  colorOrder(:,1)=linspace(0,1,nPT);
-  colorOrder(:,3)=linspace(1,0,nPT); %make low T blue, high T Red
-  
-  plotselT=1:min(3,nPT); % plot shapes of lowest 3 temperatures.
-  colorOrderShape=zeros(numel(plotselT),3);
-  colorOrderShape(:,1)=linspace(0,1,numel(plotselT));
-  colorOrderShape(:,3)=linspace(1,0,numel(plotselT)); %make low T blue, high T Red
-  
-  hfig=figure('visible','off');
-  set(hfig,'position',[100 100 1000 600])
-  set(gcf,'DefaultAxesColorOrder',colorOrder)
-  subplot(1,2,1)
-  set(gca,'NextPlot','replacechildren')
-  xlabel('iteration')
-  ylabel('Cost')
-  plotLegend=1;
-  subplot(1,2,2)
-%   set(gca,'NextPlot','replacechildren')
 else
   dispPlot=verbose;
 end
+
+
+
 
 if isfield(cfg,'fullOutput')
   fullOutput=cfg.fullOutput;
@@ -364,6 +348,28 @@ else
 end
 
 %% Initialization
+
+% draw plot window if requested
+if dispPlot
+  colorOrder=zeros(nPT,3);
+  colorOrder(:,1)=linspace(0,1,nPT);
+  colorOrder(:,3)=linspace(1,0,nPT); %make low T blue, high T Red
+  
+  plotselT=1:min(3,nPT); % plot shapes of lowest 3 temperatures.
+  colorOrderShape=zeros(numel(plotselT),3);
+  colorOrderShape(:,1)=linspace(0,1,numel(plotselT));
+  colorOrderShape(:,3)=linspace(1,0,numel(plotselT)); %make low T blue, high T Red
+  
+  hfig=figure;
+  set(hfig,'position',[100 100 1000 600])
+  set(gcf,'DefaultAxesColorOrder',colorOrder)
+  subplot(1,2,1)
+  set(gca,'NextPlot','replacechildren')
+  xlabel('iteration')
+  ylabel('Cost')
+  plotLegend=1;
+  subplot(1,2,2)
+end
 
 % find the number of sample vectors/templates
 numTrl=size(dat,1);
@@ -730,7 +736,7 @@ while iter<numIt %&&  cc<cclim
   
   if dispPlot && iterPlot>50 % if requested; plot intermediate progress
     iterPlot=0;
-    figure(hfig)
+    current_figure(hfig)
     subplot(1,2,1)
     plotselIter=max(1,iter-5e3):iter;
     plot(plotselIter,costTotal(:,plotselIter)')
@@ -743,13 +749,14 @@ while iter<numIt %&&  cc<cclim
     subplot(1,2,2)
     
     for TT=1:numel(plotselT)
-      plot(nanmean(z_i{plotselT(TT)}),'color',colorOrderShape(TT,:))
+      plot(nanmean(z_i{plotselT(TT)}),'color',colorOrderShape(TT,:),'linewidth',2)
       hold on
     end
     hold off
     title('mean shape (lowest temperatures)')
     hleg2=legend(num2str(Tfac(plotselT)','%1.2e'));
     set(get(hleg2,'title'),'string','Tfac')
+    drawnow
   end
   
   
@@ -907,3 +914,6 @@ function sx=nanstd(x,varargin)
 % replacement for nanstd
 sel=~isnan(x);
 sx=std(x(sel),varargin{1});
+
+function current_figure(h)
+set(0,'CurrentFigure',h)
