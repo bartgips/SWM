@@ -39,14 +39,14 @@ end
 
 if isfield(cfg,'newlen') && isfield(cfg,'addlen')
   loc=loc-cfg.addlen;
-  cfg.fitlen=cfg.newlen;
+  cfg.winLen=cfg.newlen;
 end
 
 if isfield(cfg,'bestclust')
   cfg.clust=cfg.bestclust;
 end
 
-fitlen=cfg.fitlen;
+winLen=cfg.winLen;
 
 t=[1:size(dat,2)]/cfg.fs;
 tim=t(2:2:end);
@@ -60,7 +60,7 @@ if verbose
   fprintf('\nGenerating TFR of data in groups of %d trials/channels...\n',groupsz)
   reverseStr='';
 end
-TFR=zeros(numel(freqoi),cfg.fitlen,cfg.numclust);
+TFR=zeros(numel(freqoi),cfg.winLen,cfg.numclust);
 avg=TFR;
 avgdum=TFR;
 stddumM=TFR;
@@ -99,7 +99,7 @@ for n=1:numgroups
     tidx=cfg.clust{kk}.tidx(sel);
     for k=1:numel(sel);
       strt=loc(trl(k)+(n-1)*groupsz,tidx(k));
-      fin=loc(trl(k)+(n-1)*groupsz,tidx(k))+fitlen-1;
+      fin=loc(trl(k)+(n-1)*groupsz,tidx(k))+winLen-1;
       if strt<1
         num=1-strt;
         avgdum(:,num+1:end,kk)=avgdum(:,num+1:end,kk)+row(squeeze(tfrnan(trl(k),:,1:fin)));
@@ -142,17 +142,17 @@ for n=1:numgroups
         
       else
         sigdumC=0*TFRdum;
-        sigdumC(:,:,kk)=row(squeeze(tfr(trl(k),:,loc(trl(k)+(n-1)*groupsz,tidx(k)):(loc(trl(k)+(n-1)*groupsz,tidx(k))+fitlen-1))));
+        sigdumC(:,:,kk)=row(squeeze(tfr(trl(k),:,loc(trl(k)+(n-1)*groupsz,tidx(k)):(loc(trl(k)+(n-1)*groupsz,tidx(k))+winLen-1))));
         sigdum=abs(sigdumC).^2;
         
         
         TFRdum(:,:,kk)=TFRdum(:,:,kk)+sigdum(:,:,kk);
         TFRCdum(:,:,kk)=TFRCdum(:,:,kk)+sigdumC(:,:,kk);
         TFRAdum(:,:,kk)=TFRAdum(:,:,kk)+abs(sigdumC(:,:,kk));
-        avgdum(:,:,kk)=avgdum(:,:,kk)+row(squeeze(tfrnan(trl(k),:,loc(trl(k)+(n-1)*groupsz,tidx(k)):(loc(trl(k)+(n-1)*groupsz,tidx(k))+fitlen-1))));
+        avgdum(:,:,kk)=avgdum(:,:,kk)+row(squeeze(tfrnan(trl(k),:,loc(trl(k)+(n-1)*groupsz,tidx(k)):(loc(trl(k)+(n-1)*groupsz,tidx(k))+winLen-1))));
         
         if nargout>2 %calculate running std
-          stddumN(:,:,kk)=stddumN(:,:,kk)+row(squeeze(tfrnan(trl(k),:,loc(trl(k)+(n-1)*groupsz,tidx(k)):(loc(trl(k)+(n-1)*groupsz,tidx(k))+fitlen-1))));
+          stddumN(:,:,kk)=stddumN(:,:,kk)+row(squeeze(tfrnan(trl(k),:,loc(trl(k)+(n-1)*groupsz,tidx(k)):(loc(trl(k)+(n-1)*groupsz,tidx(k))+winLen-1))));
           stddumMp=stddumM(:,:,kk);
           stddumM(:,:,kk)=stddumM(:,:,kk)+(sigdum(:,:,kk)-stddumM(:,:,kk))./stddumN(:,:,kk);
           stddumS(:,:,kk)=stddumS(:,:,kk)+(sigdum(:,:,kk)-stddumM(:,:,kk)).*(sigdum(:,:,kk)-stddumMp);

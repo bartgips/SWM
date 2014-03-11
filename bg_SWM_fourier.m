@@ -30,11 +30,11 @@ else
   error('no sampling frequency given (cfg.fs)')
 end
 
-if isfield(cfg,'fitlen')
-  fitlen=cfg.fitlen;
+if isfield(cfg,'winLen')
+  winLen=cfg.winLen;
 else
-  fitlen=fs*1/fbp;
-  cfg.fitlen=fitlen;
+  winLen=fs*1/fbp;
+  cfg.winLen=winLen;
 end
 
 if isfield(cfg,'type')
@@ -95,13 +95,13 @@ if isfield(cfg,'maxlocs') %only extract highest power
     end
     cfg.bestloc(trialsel,1:numel(sel))=sort(locdum(sel));
   end
-  cfg.bestloc=cfg.bestloc-floor(fitlen/2);
+  cfg.bestloc=cfg.bestloc-floor(winLen/2);
   cfg.bestloc=[cfg.bestloc ones(numtrials,1)*size(dat,2)];
   cfg.bestclust{1}.numtemplates=numtrials*maxlocs;
   
 else
   cfg.bestloc=loc;
-  cfg.bestloc=cfg.bestloc-floor(fitlen/2);
+  cfg.bestloc=cfg.bestloc-floor(winLen/2);
   cfg.bestclust{1}.numtemplates=numel(loc)-size(loc,1);
 end
 

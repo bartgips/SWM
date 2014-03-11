@@ -15,7 +15,10 @@ function [cfg]=bg_SWM(cfg, dat)
 %       N: time points
 %
 % Fields in cfg that are required:
-% .fitlen: the length of the sliding windows in timestamp units
+% .winLen:  the length of the sliding windows in timestamp units. 
+%           Note: This greatly affects the size of the found shape. I.e.
+%           larger winLens tend to converge to shapes with lower-frequency
+%           contents
 %
 % Optional fields (they all have a default value):
 % CORE PARAMETERS
@@ -27,9 +30,9 @@ function [cfg]=bg_SWM(cfg, dat)
 %             (default = 1e4)
 % .guard:     the minimal space between the starting positions of two
 %             succesive windows. Also determines the number of windows.
-%             (default = .fitlen/1.5)
+%             (default = .winLen/1.5)
 % .numWin:    number of windows to fit per trial. Limited by length of
-%             data, .fitlen and .guard;
+%             data, .winLen and .guard;
 %             (default = max)
 % .nPT:       number of parallel temperatures
 %             (default = 1)
@@ -92,7 +95,7 @@ function [cfg]=bg_SWM(cfg, dat)
 
 %% check validity of input fields
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
-  'cm';'costCoM';'costDistr';'debug';'dispPlot';'Fbs';'Fbp';'Fhp';'Flp';'costFinal';'fitlen';...
+  'cm';'costCoM';'costDistr';'debug';'dispPlot';'Fbs';'Fbp';'Fhp';'Flp';'costFinal';'winLen';...
   'fname';'fs';'fullOutput';'guard';'costCoM_i';'konstant';'loc';'costMin';...
   'nPT';'numClust';'numIt';'numIter';'numTemplates';'numWin';'ratio';'Tfac';...
   'costTotal';'costTotal_end';'costTotal_undSamp';'varname';'verbose';};
@@ -202,17 +205,17 @@ dat(nanSel)=nan;
 
 %%
 % dat : mxn : m trials, n time points
-% 2*guard should be bigger than fitlen
-if isfield(cfg,'fitlen')
-  fitlen=cfg.fitlen;
+% 2*guard should be bigger than winLen
+if isfield(cfg,'winLen')
+  winLen=cfg.winLen;
 else
-  error('fitlen should be defined')
+  error('winLen should be defined')
 end
 
 if isfield(cfg,'guard')
   guard=cfg.guard;
 else
-  guard=round(fitlen/1.5);
+  guard=round(winLen/1.5);
   cfg.guard=guard;
 end
 
@@ -297,9 +300,9 @@ else
   for n=1:nPT
     if ~debug || n<2
       if numWin
-        [loc{n}, numWin]=initloc(guard,fitlen,dat,numWin);
+        [loc{n}, numWin]=initloc(guard,winLen,dat,numWin);
       else
-        [loc{n}, numWin]=initloc(guard,fitlen,dat);
+        [loc{n}, numWin]=initloc(guard,winLen,dat);
       end
     else
       loc{n}=loc{1};
@@ -349,7 +352,7 @@ cfg.numTemplates=numTemplates;
 
 % construct sample vectors
 z_i=cell(1,nPT);
-z_i(:)={nan(numTemplates,fitlen)};
+z_i(:)={nan(numTemplates,winLen)};
 costCoM_i=nan(numTemplates,nPT); %CoM cost of individual windows
 
 cm=costCoM_i;
@@ -363,7 +366,7 @@ for T=1:nPT
   if T<2 || ~debug
     for n=1:numTemplates
       [trldum idxdum]=ind2sub([numTrl,numWin],n);
-      s_i=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+fitlen-1);
+      s_i=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+winLen-1);
       z_i{T}(n,:)=(s_i(:)-nanmean(s_i(:)))/nanstd(s_i(:),1);
       
       msg=sprintf('\n Temperature %d/%d \n Template %d/%d', [T nPT n numTemplates]);
@@ -437,7 +440,7 @@ if verbose
   fprintf('\nInitializing cost matrices...')
 end
 D=zeros(1,nPT);
-N=fitlen;
+N=winLen;
 for T=1:nPT
   D(T)=costCoM(T);
   for n=1:numClust
@@ -530,7 +533,7 @@ while iter<numIt %&&  cc<cclim
         pcost=clust{clustidx,T}.tempCost;
         pcomcost=costCoM_i(lidx,T);
         
-        s_dum=dat(trl,nLoc:nLoc+fitlen-1);
+        s_dum=dat(trl,nLoc:nLoc+winLen-1);
         z_dum=(s_dum-nanmean(s_dum))/nanstd(s_dum,1);
         
         if nanFlag
@@ -541,10 +544,10 @@ while iter<numIt %&&  cc<cclim
           z_sumdum=clust{clustidx,T}.z_isum-pZ+nZ;
           noNanCountdum=clust{clustidx,T}.noNanCount-isnan(z_i{T}(lidx,:))+isnan(z_dum);
           nanFac=N_c./noNanCountdum;
-          ncost=(N_c^2/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(fitlen*(N_c-1));
+          ncost=(N_c^2/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*(N_c-1));
         else
           z_sumdum=clust{clustidx,T}.z_isum-z_i{T}(lidx,:)+z_dum;
-          ncost=(N_c^2/(N_c-1))-(z_sumdum*z_sumdum.')/(fitlen*(N_c-1));
+          ncost=(N_c^2/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*(N_c-1));
         end
         
         
@@ -626,7 +629,7 @@ while iter<numIt %&&  cc<cclim
         z2dum=[z_sumdum(1,:)*z_sumdum(1,:).' z_sumdum(2,:)*z_sumdum(2,:).'];
       end
       
-      ncost=((N_c.^2./(N_c-1))-z2dum./(fitlen*(N_c-1)));
+      ncost=((N_c.^2./(N_c-1))-z2dum./(winLen*(N_c-1)));
       cVal=pcost-sum(ncost);
       
       %accept/reject cluster change
@@ -776,16 +779,16 @@ end
 
 % calculating the final shape (note this is after preprocessing, so this
 % might yield different results than bg_swm_extract)
-cfg.best_s=nan(fitlen,numClust);
-cfg.best_z=nan(fitlen,numClust);
+cfg.best_s=nan(winLen,numClust);
+cfg.best_z=nan(winLen,numClust);
 cfg.costDistr=cell(1,numClust);
 for n=1:numClust
   
-  dum_s=nan(tclust{n}.numTemplates,fitlen);
+  dum_s=nan(tclust{n}.numTemplates,winLen);
   for k=1:tclust{n}.numTemplates
     trl=tclust{n}.trl(k);
     tidx=tclust{n}.tidx(k);
-    dum_s(k,:)=dat(trl,tloc(trl,tidx):tloc(trl,tidx)+fitlen-1);
+    dum_s(k,:)=dat(trl,tloc(trl,tidx):tloc(trl,tidx)+winLen-1);
   end
   cfg.best_s(:,n)=nanmean(dum_s,1);
   cfg.best_z(:,n)=nanmean(bsxfun(@rdivide,bsxfun(@minus,dum_s,mean(dum_s,2)),std(dum_s,1,2)),1);
@@ -829,10 +832,10 @@ if numel(n)<2
 end
 [~,p] = max(rand(n(1),n(2)));
 
-function [loc,numWin]=initloc(guard,fitlen,data,numWin)
+function [loc,numWin]=initloc(guard,winLen,data,numWin)
 % initialize window locations
 len=size(data);
-dum=1:2*guard:max((len(2)-fitlen-guard),1);
+dum=1:2*guard:max((len(2)-winLen-guard),1);
 
 if nargin<4
   numWin=numel(dum);
@@ -845,9 +848,9 @@ end
 loc=nan(size(data,1),numWin+1);
 for n=1:len(1)
   dum2=dum+randval([guard, numel(dum)])-1;
-  dum2=min(dum2,len(2)-fitlen+1);
+  dum2=min(dum2,len(2)-winLen+1);
   sel=randperm(numel(dum2),numWin);
-  loc(n,:)=[dum2(sel) size(data,2)+guard-fitlen];
+  loc(n,:)=[dum2(sel) size(data,2)+guard-winLen];
 end
 
 function D_i=cost_i(z_s)

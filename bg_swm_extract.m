@@ -30,14 +30,14 @@ end
 if isfield(cfg,'newLen')
   newLen=cfg.newLen;
 else
-  newLen=cfg.fitlen;
+  newLen=cfg.winLen;
 end
 
 if isfield(cfg,'best_loc')
   loc=cfg.best_loc;
 else loc=cfg.loc;
 end
-fitlen=cfg.fitlen;
+winLen=cfg.winLen;
 
 if isfield(cfg,'best_clust')
   cfg.clust=cfg.best_clust;
@@ -55,9 +55,9 @@ else
   s=nan(cfg.numTemplates,newLen);
 end
 z=s;
-addlen=round(newLen-fitlen)/2;
+addlen=round(newLen-winLen)/2;
 cfg.addlen=addlen;
-newLen=fitlen+2*addlen;
+newLen=winLen+2*addlen;
 
 
 if clustering
@@ -65,14 +65,14 @@ if clustering
     for k=1:cfg.clust{n}.numTemplates
       trl=cfg.clust{n}.trl(k);
       tidx=cfg.clust{n}.tidx(k);
-      if loc(trl,tidx)+fitlen+addlen<=size(dat,2) && loc(trl,tidx)-addlen>0
-        s{n}(k,:)=dat(trl,loc(trl,tidx)-addlen:loc(trl,tidx)+fitlen+addlen-1);
+      if loc(trl,tidx)+winLen+addlen<=size(dat,2) && loc(trl,tidx)-addlen>0
+        s{n}(k,:)=dat(trl,loc(trl,tidx)-addlen:loc(trl,tidx)+winLen+addlen-1);
       elseif loc(trl,tidx)-addlen>0
         num=size(dat,2)-loc(trl,tidx)+1;
         s{n}(k,1:num)=dat(trl,loc(trl,tidx):end);
       elseif loc(trl,tidx)+addlen<=size(dat,2)
         num=1-(loc(trl,tidx)-addlen);
-        s{n}(k,num+1:end)=dat(trl,1:loc(trl,tidx)+fitlen+addlen-1);
+        s{n}(k,num+1:end)=dat(trl,1:loc(trl,tidx)+winLen+addlen-1);
       end
     end
     z{n}=zscore(s{n},1,2);
@@ -80,14 +80,14 @@ if clustering
 else
   for k=1:cfg.numTemplates
     [trl, tidx]=ind2sub(size(loc(:,1:end-1)),k);
-    if loc(trl,tidx)+fitlen+addlen<=size(dat,2) && loc(trl,tidx)-addlen>0
-      s(k,:)=dat(trl,loc(trl,tidx)-addlen:loc(trl,tidx)+fitlen+addlen-1);
+    if loc(trl,tidx)+winLen+addlen<=size(dat,2) && loc(trl,tidx)-addlen>0
+      s(k,:)=dat(trl,loc(trl,tidx)-addlen:loc(trl,tidx)+winLen+addlen-1);
     elseif loc(trl,tidx)-addlen>0
       num=size(dat,2)-loc(trl,tidx)+1;
       s(k,1:num)=dat(trl,loc(trl,tidx):end);
     elseif loc(trl,tidx)+addlen<=size(dat,2)
       num=1-(loc(trl,tidx)-addlen);
-      s(k,num+1:end)=dat(trl,1:loc(trl,tidx)+fitlen+addlen-1);
+      s(k,num+1:end)=dat(trl,1:loc(trl,tidx)+winLen+addlen-1);
     end
   end
   z=zscore(s,1,2);
