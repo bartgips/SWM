@@ -15,7 +15,7 @@ function [cfg]=bg_SWM(cfg, dat)
 %       N: time points
 %
 % Fields in cfg that are required:
-% .winLen:  the length of the sliding windows in timestamp units. 
+% .winLen:  the length of the sliding windows in timestamp units.
 %           Note: This greatly affects the size of the found shape. I.e.
 %           larger winLens tend to converge to shapes with lower-frequency
 %           contents
@@ -24,8 +24,11 @@ function [cfg]=bg_SWM(cfg, dat)
 % CORE PARAMETERS
 % .fname:     path and filename of the .mat-file that contains the data on
 %             which the algorithms must be applied.
+%             Note: if "dat" is given as input, this is set to 'function
+%             input'
 % .varname:   the name of the variable within .fname tha actually contains
-%             the data.
+%             the data. 
+%             Note: if "dat" is given as input, this is set to 'N/A'
 % .numIt:     the number of iterations the algorithm will run through.
 %             (default = 1e4)
 % .guard:     the minimal space between the starting positions of two
@@ -73,7 +76,16 @@ function [cfg]=bg_SWM(cfg, dat)
 %             temperature and then overwrite all the others. This speeds up
 %             initilization of the algorithm and is therefore useful during
 %             debugging.
-% .dispPlot:
+% .verbose:   Determines whether the progression of the cost functions for
+%             every temperature is printed to the screen. Useful if the
+%             function is called directly. Not useful if the function is
+%             sent as a batch job to a computer cluster that saves all
+%             printed output. (Unneccesary large files are the result).
+%             (default = 1)
+% .dispPlot:  Determine wheter the cost function trajectories as well as
+%             the mean shapes with the lowest 3 temperatures is plotted.
+%             i.e. a .verbose more visual cousin.
+%             (default = equal to .verbose)
 %
 % %%%%%%%
 % OUTPUT:
@@ -86,6 +98,9 @@ function [cfg]=bg_SWM(cfg, dat)
 % .best_z:        Contains the best mean shape for every cluster; but after
 %                 individual z-scoring (the algorithm uses this for calculating
 %                 the cost function.
+% .best_clust:    Contains the clustering state with lowest Cost.
+% .best_clustID:  Contains the cluster IDs for every window for
+%                 convenience. (No need to dig into best_clust).
 % .costTotal:     The trajectories of the cost function for every temperature
 %                 seperately. Only given when cfg.fullOutput=1.
 % .totcost_unSamp:As above, but undersampled by a factor 100 to save
@@ -263,26 +278,6 @@ else
   cfg.Tfac=Tfac;
 end
 
-if isfield(cfg,'dispPlot')
-  dispPlot=cfg.dispPlot;
-  colorOrder=hot(nPT);
-  colorOrder=bsxfun(@rdivide,colorOrder,sqrt(sum(colorOrder.^2,2)));
-  figure(999)
-  set(999,'position',[100 100 1000 600])
-  set(gcf,'DefaultAxesColorOrder',colorOrder)
-  subplot(1,2,1)
-  set(gca,'NextPlot','replacechildren')
-  xlabel('iteration')
-  ylabel('Cost')
-  plotLegend=1;
-  subplot(1,2,2)
-  set(gca,'NextPlot','replacechildren')
-  title('mean shape (lowest temperature)')  
-else
-  dispPlot=0;
-end
-
-
 if isfield(cfg,'numWin')
   numWin=cfg.numWin;
 else
@@ -334,6 +329,31 @@ if isfield(cfg,'verbose')
   verbose=cfg.verbose;
 else
   verbose=true;
+end
+
+if isfield(cfg,'dispPlot')
+  dispPlot=cfg.dispPlot;
+  colorOrder=zeros(nPT,3);
+  colorOrder(:,1)=linspace(0,1,nPT);
+  colorOrder(:,3)=linspace(1,0,nPT); %make low T blue, high T Red
+  
+  plotselT=1:min(3,nPT); % plot shapes of lowest 3 temperatures.
+  colorOrderShape=zeros(numel(plotselT),3);
+  colorOrderShape(:,1)=linspace(0,1,numel(plotselT));
+  colorOrderShape(:,3)=linspace(1,0,numel(plotselT)); %make low T blue, high T Red
+  
+  hfig=figure('visible','off');
+  set(hfig,'position',[100 100 1000 600])
+  set(gcf,'DefaultAxesColorOrder',colorOrder)
+  subplot(1,2,1)
+  set(gca,'NextPlot','replacechildren')
+  xlabel('iteration')
+  ylabel('Cost')
+  plotLegend=1;
+  subplot(1,2,2)
+%   set(gca,'NextPlot','replacechildren')
+else
+  dispPlot=verbose;
 end
 
 if isfield(cfg,'fullOutput')
@@ -710,18 +730,26 @@ while iter<numIt %&&  cc<cclim
   
   if dispPlot && iterPlot>50 % if requested; plot intermediate progress
     iterPlot=0;
-    figure(999)
+    figure(hfig)
     subplot(1,2,1)
-    plotsel=max(1,iter-5e3):iter;
-    plot(plotsel,costTotal(:,plotsel)')
-    xlim([plotsel(1) plotsel(1)+5e3-1])
+    plotselIter=max(1,iter-5e3):iter;
+    plot(plotselIter,costTotal(:,plotselIter)')
+    xlim([plotselIter(1) plotselIter(1)+5e3-1])
     if plotLegend
-      hleg=legend(num2str(Tfac(:)));
+      hleg=legend(num2str(Tfac(:),'%1.2e'));
       set(get(hleg,'title'),'string','Tfac')
       plotLegend=0;
     end
     subplot(1,2,2)
-    plot(nanmean(z_i{1}))
+    
+    for TT=1:numel(plotselT)
+      plot(nanmean(z_i{plotselT(TT)}),'color',colorOrderShape(TT,:))
+      hold on
+    end
+    hold off
+    title('mean shape (lowest temperatures)')
+    hleg2=legend(num2str(Tfac(plotselT)','%1.2e'));
+    set(get(hleg2,'title'),'string','Tfac')
   end
   
   

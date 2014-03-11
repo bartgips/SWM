@@ -46,6 +46,11 @@ if nargin<2
 end
 reverseStr=[];
 
+if nargin >2 && fignum
+  figure(fignum)
+  clf
+  set(fignum,'visible','off')
+end
 
 [numTemp, tempLen]=size(shapeMat);
 numIt=numTemp;

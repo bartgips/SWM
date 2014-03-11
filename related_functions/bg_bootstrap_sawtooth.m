@@ -51,6 +51,11 @@ if nargin<4
 end
 reverseStr=[];
 
+if nargin >2 && fignum
+  figure(fignum)
+  clf
+  set(fignum,'visible','off')
+end
 
 [numTemp, tempLen]=size(shapeMat);
 skwIdx=nan(numIt,1);
