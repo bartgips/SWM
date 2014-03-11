@@ -56,12 +56,27 @@ end
 numIt=numTemp;
 skwIdx=nan(numIt,1);
 
-% cut off sides (focus on centre theta shape +- 10%)
-[~,ax]=findpeaks(sign(nansum(shapeMat(:)-mean(minmax(nanmean(shapeMat)))))*nanmean(shapeMat),'minpeakdistance',round(tempLen/3));
-brd=mean(ax)+[-1 1]*diff(ax)*.55;
-brd=[max(floor(brd(1)),1) min(ceil(brd(2)),tempLen)];
-shapeMat=shapeMat(:,brd(1):brd(2));
+%% cut off sides of found shape (focus on centre of window +- 5%)
+% (for better fitting
+meanShapedum=nanmean(shapeMat)';
+meanShapedum=meanShapedum-nanmean(meanShapedum);
+% detect dominant frequeny
+spec=fft(padarray(meanShapedum,5*tempLen,0,'both'));
+spec=spec(1:ceil(end/2));
+[~,midx]=max(abs(spec));
+shapeLen=11*tempLen/midx;
 
+% shift of shape centre
+shapeCentre=round(tempLen/2-atan(imag(spec(midx))/real(spec(midx)))/(2*pi)*shapeLen);
+
+brd=shapeCentre+[-1 1]*shapeLen*.55;
+brd=[max(floor(brd(1)),1) min(ceil(brd(2)),tempLen)];
+
+%resize and detrend
+shapeMat=shapeMat(:,brd(1):brd(2));
+shapeMat=detrend(shapeMat')';
+
+%%
 % intial fit parameters
 X0=[diff(minmax(nanmean(shapeMat)))/2, tempLen/2, 0, mean(shapeMat(:)), 0]';
 fitOptions=optimset('Algorithm','interior-point','Display','off');
