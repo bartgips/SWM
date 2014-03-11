@@ -51,7 +51,7 @@ if nargin<4
 end
 reverseStr=[];
 
-if nargin >2 && fignum
+if nargin >4 && fignum
   figure(fignum)
   clf
   set(fignum,'visible','off')
