@@ -131,4 +131,4 @@ function c=sawtoothfit(dat, lambda)
 
 dat=dat(:);
 swth=lambda(1)*sawtooth(([1:numel(dat)]-lambda(3))*2*pi/lambda(2),(lambda(5)+1)/2)+lambda(4);
-c=sumsqr((dat(:)-swth(:)));
+c=sum(((dat(:)-swth(:))).^2);
