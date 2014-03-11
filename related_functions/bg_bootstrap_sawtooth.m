@@ -83,7 +83,7 @@ shapeMat=detrend(shapeMat')';
 
 %%
 % intial fit parameters
-X0=[diff(minmax(nanmean(shapeMat)))/2, tempLen/2, 0, mean(shapeMat(:)), 0]';
+X0=[diff(minmax(nanmean(shapeMat)))/2, tempLen/2, 0, nanmean(shapeMat(:)), 0]';
 fitOptions=optimset('Algorithm','interior-point','Display','off');
 
 for iter=1:numIt
