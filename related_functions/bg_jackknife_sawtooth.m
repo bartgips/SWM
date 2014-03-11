@@ -61,7 +61,7 @@ skwIdx=nan(numIt,1);
 meanShapedum=nanmean(shapeMat)';
 meanShapedum=meanShapedum-nanmean(meanShapedum);
 % detect dominant frequeny
-spec=fft(padarray(meanShapedum,5*tempLen,0,'both'));
+spec=fft([zeros(1,5*tempLen) meanShapedum zeros(1,5*tempLen)]);
 spec=spec(1:ceil(end/2));
 [~,midx]=max(abs(spec));
 shapeLen=11*tempLen/midx;
