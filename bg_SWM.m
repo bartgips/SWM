@@ -215,8 +215,7 @@ if isfield(cfg,'Flp')
   end
 end
 
-% change back to NaNs
-dat(nanSel)=nan;
+
 
 %%
 % dat : mxn : m trials, n time points
@@ -224,8 +223,17 @@ dat(nanSel)=nan;
 if isfield(cfg,'winLen')
   winLen=cfg.winLen;
 else
-  error('winLen should be defined')
+  warning('winLen is not defined. Determining optimal winLen from 1/f corrected power spectrum')
+  dat(nanSel)=0;
+  spec=fft([repmat(zeros(size(dat)),1,5) diff(dat,1,2) repmat(zeros(size(dat)),1,5)]');
+  spec=spec(1:ceil(end/2),:);
+  [~,midx]=max(mean(abs(spec),2));
+  shapeLen=(11*size(dat,2)-1)/midx;
+  winLen=round(1.5*shapeLen);
 end
+
+% change missing data back to NaNs
+dat(nanSel)=nan;
 
 if isfield(cfg,'guard')
   guard=cfg.guard;
@@ -308,7 +316,7 @@ else
 end
 
 if isfield(cfg,'best_loc')
-  loc{end}=cfg.best_loc;
+  loc{1}=cfg.best_loc;
 end
 
 if isfield(cfg,'numClust')
@@ -348,28 +356,6 @@ else
 end
 
 %% Initialization
-
-% draw plot window if requested
-if dispPlot
-  colorOrder=zeros(nPT,3);
-  colorOrder(:,1)=linspace(0,1,nPT);
-  colorOrder(:,3)=linspace(1,0,nPT); %make low T blue, high T Red
-  
-  plotselT=1:min(3,nPT); % plot shapes of lowest 3 temperatures.
-  colorOrderShape=zeros(numel(plotselT),3);
-  colorOrderShape(:,1)=linspace(0,1,numel(plotselT));
-  colorOrderShape(:,3)=linspace(1,0,numel(plotselT)); %make low T blue, high T Red
-  
-  hfig=figure;
-  set(hfig,'position',[100 100 1000 600])
-  set(gcf,'DefaultAxesColorOrder',colorOrder)
-  subplot(1,2,1)
-  set(gca,'NextPlot','replacechildren')
-  xlabel('iteration')
-  ylabel('Cost')
-  plotLegend=1;
-  subplot(1,2,2)
-end
 
 % find the number of sample vectors/templates
 numTrl=size(dat,1);
@@ -488,6 +474,28 @@ end
 
 if verbose
   fprintf('\nDone!\n')
+end
+
+% draw plot window if requested
+if dispPlot
+  colorOrder=zeros(nPT,3);
+  colorOrder(:,1)=linspace(0,1,nPT);
+  colorOrder(:,3)=linspace(1,0,nPT); %make low T blue, high T Red
+  
+  plotselT=1:min(3,nPT); % plot shapes of lowest 3 temperatures.
+  colorOrderShape=zeros(numel(plotselT),3);
+  colorOrderShape(:,1)=linspace(0,1,numel(plotselT));
+  colorOrderShape(:,3)=linspace(1,0,numel(plotselT)); %make low T blue, high T Red
+  
+  hfig=figure;
+  set(hfig,'position',[100 100 1000 600])
+  set(gcf,'DefaultAxesColorOrder',colorOrder)
+  subplot(1,2,1)
+  set(gca,'NextPlot','replacechildren')
+  xlabel('iteration')
+  ylabel('Cost')
+  plotLegend=1;
+  subplot(1,2,2)
 end
 
 swapcount=0;
@@ -890,7 +898,7 @@ end
 
 function D_i=cost_i(z_s)
 % calculate Error (i.e. difference from mean)
-mu=mean(z_s,1);
+mu=nanmean(z_s,1);
 z_s=bsxfun(@minus,z_s,mu).^2;
 D_i=(z_s);
 
