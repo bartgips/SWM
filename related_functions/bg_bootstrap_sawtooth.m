@@ -165,7 +165,7 @@ t=stats.period.mu/stats.period.sem;
 stats.period.p_t=1-tcdf(abs(t),numIt-1);
 % 95% confidence
 alpha=.05;
-stats.period.CI= prctile(period,[alpha/2 1-alpha/2]);
+stats.period.CI= quantile(period,[alpha/2 1-alpha/2]);
 
 function c=sawtoothfit(dat, lambda)
 % c=sawtoothfit(dat, lambda)
