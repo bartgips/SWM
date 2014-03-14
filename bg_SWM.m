@@ -230,6 +230,7 @@ else
   [~,midx]=max(mean(abs(spec),2));
   shapeLen=(11*size(dat,2)-1)/midx;
   winLen=round(1.5*shapeLen);
+  cfg.winLen=winLen;
 end
 
 % change missing data back to NaNs
@@ -747,7 +748,7 @@ while iter<numIt %&&  cc<cclim
     current_figure(hfig)
     subplot(1,2,1)
     plotselIter=max(1,iter-5e3):iter;
-    plot(plotselIter,costTotal(:,plotselIter)')
+    plot(plotselIter,costTotal(:,plotselIter)','linewidth',2)
     xlim([plotselIter(1) plotselIter(1)+5e3-1])
     if plotLegend
       hleg=legend(num2str(Tfac(:),'%1.2e'));
