@@ -153,7 +153,7 @@ t=stats.skw.mu/stats.skw.sem;
 stats.skw.p_t=1-tcdf(abs(t),numIt-1);
 % 95% confidence
 alpha=.05;
-stats.skw.CI= prctile(skwIdx,[alpha/2 1-alpha/2]);
+stats.skw.CI= quantile(skwIdx,[alpha/2 1-alpha/2]);
 
 %% period
 stats.period.mu=mean(period);
