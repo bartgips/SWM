@@ -99,6 +99,12 @@ stats.swFit=nan*stats.meanShape;
 % cut off extra bits
 shapeMat=shapeMat(:,brd(1):brd(2));
 
+%detrend
+shapeMat=detrend(shapeMat')';
+
+stats.meanShape=nanmean(shapeMat)';
+stats.swFit=nan*stats.meanShape;
+
 %%
 % intial fit parameters
 X0=[diff(minmax(nanmean(shapeMat)))/2, tempLen/2, 0, nanmean(shapeMat(:)), 0, 0]';
@@ -140,7 +146,8 @@ end
 meanShape=nanmean(shapeMat);
 [X0]=fmincon(@(x)sawtoothfit(meanShape,x),X0,[],[],[],[],lowerBound,upperBound,[],fitOptions);
 stdum=X0(1)*sawtooth(([1:numel(meanShape)]-X0(3))*2*pi/X0(2),(X0(5)+1)/2)+X0(4)+[1:numel(meanShape)]*X0(6);
-stats.swFit(brd(1):brd(2))=stdum;
+% stats.swFit(brd(1):brd(2))=stdum;
+stats.swFit=stdum;
 
 %% skewness
 stats.skw.mu=mean(skwIdx);
@@ -153,7 +160,11 @@ t=stats.skw.mu/stats.skw.sem;
 stats.skw.p_t=1-tcdf(abs(t),numIt-1);
 % 95% confidence
 alpha=.05;
+try
 stats.skw.CI= quantile(skwIdx,[alpha/2 1-alpha/2]);
+catch
+  warning('no confidence interval calculated')
+end
 
 %% period
 stats.period.mu=mean(period);
@@ -165,7 +176,11 @@ t=stats.period.mu/stats.period.sem;
 stats.period.p_t=1-tcdf(abs(t),numIt-1);
 % 95% confidence
 alpha=.05;
+try
 stats.period.CI= quantile(period,[alpha/2 1-alpha/2]);
+catch
+%   warning('no confidence interval calculated')
+end
 
 function c=sawtoothfit(dat, lambda)
 % c=sawtoothfit(dat, lambda)
