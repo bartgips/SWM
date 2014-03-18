@@ -92,22 +92,22 @@ end
 brd=[shapeStart shapeStart+Xdum(2)]+[-1 1]*(lenFac-1)/2*Xdum(2);
 brd=[max(floor(brd(1)),1) min(ceil(brd(2)),tempLen)];
 
-
-stats.meanShape=nanmean(shapeMat)';
-stats.swFit=nan*stats.meanShape;
+% 
+% stats.meanShape=nanmean(shapeMat)';
+% stats.swFit=nan*stats.meanShape;
 
 % cut off extra bits
 shapeMat=shapeMat(:,brd(1):brd(2));
 
 %detrend
-shapeMat=detrend(shapeMat')';
+% shapeMat=detrend(shapeMat')';
 
 stats.meanShape=nanmean(shapeMat)';
 stats.swFit=nan*stats.meanShape;
 
 %%
 % intial fit parameters
-X0=[diff(minmax(nanmean(shapeMat)))/2, tempLen/2, 0, nanmean(shapeMat(:)), 0, 0]';
+X0=[Xdum(1:2)', 0, nanmean(shapeMat(:)), Xdum(5), 0]';
 
 
 

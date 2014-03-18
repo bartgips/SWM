@@ -30,13 +30,10 @@ end
 %% preprocessing (filtering)
 nanSel=isnan(dat);
 nanFlag=any(nanSel(:));
-if nanFlag
-  warning(['Data contains ' num2str(round(sum(nanSel(:))/numel(nanSel)*100)) '% NaNs. Correct convergence is not guaranteed.'])
-end
 
 if any(isfield(cfg,{'Fbp','Fbs','Fhp','Flp'}))
   disp('Applying frequency filters...')
-  filttype='fir';
+%   filttype='fir';
   filttype='but';
   % first temporarily change NaNs to zero's such that filtering works
   if nanFlag
@@ -111,18 +108,25 @@ else
   newLen=cfg.winLen;
 end
 
+winLen=cfg.winLen;
+addLen=round((newLen-winLen)/2);
+cfg.addLen=addLen;
+newLen=winLen+2*addLen;
+cfg.newLen=newLen;
+
 if isfield(cfg,'best_loc')
   loc=cfg.best_loc;
 else
   loc=cfg.loc;
 end
 
-winLen=cfg.winLen;
+
 
 if isfield(cfg,'best_clust')
   cfg.clust=cfg.best_clust;
   cfg.numclust=numel(cfg.clust);
 end
+
 
 if isfield(cfg,'clust')
   clustering=true;
@@ -135,11 +139,6 @@ else
   s=nan(cfg.numTemplates,newLen);
 end
 z=s;
-addLen=round(newLen-winLen)/2;
-cfg.addLen=addLen;
-newLen=winLen+2*addLen;
-cfg.newLen=newLen;
-
 
 if clustering
   for n=1:numel(s)
