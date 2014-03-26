@@ -16,10 +16,15 @@ function [cfg]=bg_SWM_SA(cfg, dat)
 %       N: time points
 %
 % Fields in cfg that are required:
-% .winLen:  the length of the sliding windows in timestamp units.
-%           Note: This greatly affects the size of the found shape. I.e.
-%           larger winLens tend to converge to shapes with lower-frequency
-%           contents
+% .winLen:    the length of the sliding windows in timestamp units.
+%             Note: This greatly affects the size of the found shape. I.e.
+%             larger winLens tend to converge to shapes with lower-frequency
+%             contents
+% OR
+% .winLenFac: Determines .winLen based on the peak in the 1/f-corrected
+%             power spectrum of the data. If .winLen is omitted it will be
+%             set to .winLenFac*T. Where T is the period corresponding to 
+%             the peak in the power spectrum.
 %
 % Optional fields (they all have a default value):
 % CORE PARAMETERS
@@ -58,6 +63,10 @@ function [cfg]=bg_SWM_SA(cfg, dat)
 %             When .Fbs is supplied, the function first applies a bandstop
 %             filter to the data before performing the SWM
 % .Fhp:       High-Pass cut-off frequency. use as above.
+% .FhpFac:    High-Pass, but similar to .winLenFac, this applies filtering 
+%             relative to the peak frequency in the data. E.g. when the 
+%             main component is 10 Hz and .FhpFac=.5 it will apply 5 Hz HP
+%             filtering.
 % .Flp:       Low-Pass cut-off frequency. use as above.
 %
 % FLAGS
@@ -100,10 +109,10 @@ function [cfg]=bg_SWM_SA(cfg, dat)
 
 %% check validity of input fields
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
-  'cm';'costCoM';'costDistr';'dispPlot';'Fbs';'Fbp';'Fhp';'Flp';'costFinal';'winLen';...
+  'cm';'costCoM';'costDistr';'dispPlot';'Fbs';'Fbp';'Fhp';'FhpFac';'Flp';'costFinal';...
   'fname';'fs';'fullOutput';'guard';'costCoM_i';'loc';'costMin';...
   'numSelTemplates';'numClust';'numIt';'numIter';'numTemplates';'numWin';'ratio';'Tfac';...
-  'costTotal';'costTotal_end';'costTotal_undSamp';'varname';'verbose';};
+  'costTotal';'costTotal_end';'costTotal_undSamp';'varname';'verbose';'winLen';'winLenFac';};
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
@@ -134,9 +143,28 @@ if nanFlag
   warning(['Data contains ' num2str(round(sum(nanSel(:))/numel(nanSel)*100)) '% NaNs. Correct convergence is not guaranteed.'])
 end
 
+%% determine winLen
+if isfield(cfg,'winLen')
+  winLen=cfg.winLen;
+else
+  warning('winLen is not defined. Determining optimal winLen from 1/f corrected power spectrum')
+  dat(nanSel)=0;
+  nfft=2^nextpow2(size(dat,2))*4;
+  spec=fft(diff(dat,1,2)',nfft);
+  spec=spec(1:nfft/2+1,:);
+  [~,midx]=max(mean(abs(spec).^2,2));
+  shapeLen=nfft/midx;
+  if isfield(cfg,'winLenFac')
+    winLen=round(cfg.winLenFac*shapeLen);
+  else
+    winLen=round(1.5*shapeLen);
+  end
+  cfg.winLen=winLen;
+end
+
 
 %% preprocessing (filtering)
-if any(isfield(cfg,{'Fbp','Fbs','Fhp','Flp'}))
+if any(isfield(cfg,{'Fbp','Fbs','Fhp','Flp','FhpFac'}))
   disp('Applying frequency filters...')
   filttype='fir';
   filttype='but';
@@ -192,6 +220,22 @@ if isfield(cfg,'Fhp')
   end
 end
 
+if isfield(cfg,'FhpFac')
+  if exist(Fhp,'var')
+    warning('Applying double HP filtering. Based on both .Fhp and .FhpFac. This may not be desired.')
+  end
+  if isfield(cfg,'fs')
+    fs=cfg.fs;
+  else
+    error('Sampling rate missing. High-pass filter is not possible without cfg.fs')
+  end
+  Fhp=1/(shapeLen/fs)*cfg.FhpFac;
+  Fhp=Fhp(:);
+  for freq=1:size(Fhp,1)
+    dat=ft_preproc_highpassfilter(dat, fs, Fhp(freq),[],filttype);
+  end
+end
+
 if isfield(cfg,'Flp')
   if isfield(cfg,'fs')
     fs=cfg.fs;
@@ -208,20 +252,6 @@ end
 
 
 %%
-% dat : mxn : m trials, n time points
-% 2*guard should be bigger than winLen
-if isfield(cfg,'winLen')
-  winLen=cfg.winLen;
-else
-  warning('winLen is not defined. Determining optimal winLen from 1/f corrected power spectrum')
-  dat(nanSel)=0;
-  spec=fft([repmat(zeros(size(dat)),1,5) diff(dat,1,2) repmat(zeros(size(dat)),1,5)]');
-  spec=spec(1:ceil(end/2),:);
-  [~,midx]=max(mean(abs(spec),2));
-  shapeLen=(11*size(dat,2)-1)/midx;
-  winLen=round(1.5*shapeLen);
-  cfg.winLen=winLen;
-end
 
 % change missing data back to NaNs
 dat(nanSel)=nan;
