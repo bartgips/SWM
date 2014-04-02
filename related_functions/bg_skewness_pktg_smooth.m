@@ -72,14 +72,14 @@ for n=1:size(x,2)
   pktgIdx=sign(diff(xint(zeroCross)));
   pktgIdx=[-pktgIdx(1,:); pktgIdx];
   
-  % find the two most central extrema
-  slopePos=1./abs(zeroCross-zeroCross(end)/2);
+  % find the three extrema closest to "bias"
+  slopePos=1./abs(zeroCross-bias);
   [~,mLenidx]=max(conv(slopePos,ones(1,3),'same'));
   brd=zeroCross(mLenidx+[0:2]-1);
   sigma=0;
   breakloop=false;
   meanperiod=diff(brd([1 3]));
-  
+  xsmth=xint;
   while meanperiod<.8*periodEst || breakloop
     
     sigma=sigma+interpFac/2;
@@ -95,14 +95,14 @@ for n=1:size(x,2)
     pktgIdx=[pktgIdx(1:end-1)];
     
     meanperiod=zeroCross(2:end-1);
-    meanperiod=(mean(diff(zeroCross(pktgIdx<0)))+mean(diff(zeroCross(pktgIdx>0))))/2;
+    meanperiod=(mean(diff(meanperiod(pktgIdx<0)))+mean(diff(meanperiod(pktgIdx>0))))/2;
     
     
     if sigma>periodEst/2
       breakloop=true;
     end 
-    
-%     figure(5)
+%     
+%     figure(100)
 %     plot(xsmth)
 %     vline(zeroCross)
 %     drawnow
