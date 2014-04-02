@@ -84,6 +84,12 @@ skwIdx=nan(numIt,1);
 brd=nan(numIt,3);
 sampsz=round(frac*numTemp);
 
+% find bias for bg_skewness_pktg_smooth; i.e. find period with least
+% variance
+varShape=nanvar(shapeMat);
+bias=[1:tempLen]*(1./varShape.')/sum(varShape);
+
+
 for iter=1:numIt
   
   sel=ceil(rand(sampsz,1)*numTemp);
@@ -96,7 +102,7 @@ for iter=1:numIt
   end
   %% calculating SkwIdx
   try
-    [skwIdx(iter), brd(iter,:), meanShape]=bg_skewness_pktg_smooth(meanShape);
+    [skwIdx(iter), brd(iter,:), meanShape]=bg_skewness_pktg_smooth(meanShape,bias);
     
     
     if nargin >4 && fignum
@@ -105,7 +111,7 @@ for iter=1:numIt
       vline(brd(iter,:))
       title(sprintf(['Iteration %d/%d\n'], [iter numIt]))
       xlim([1 numel(meanShape)])
-      title(['Skewness Index: ' num2str(skwIdx(iter))])
+      title(['Iteration ' num2str(iter) '/' num2str(numIt) '; Skewness: ' num2str(skwIdx(iter),'%1.3f')])
       drawnow
     end
   end
@@ -116,8 +122,8 @@ end
 
 
 %% skewness
-stats.skw.mu=mean(skwIdx);
-stats.skw.sem=sqrt(numIt/(numIt-1)*var(skwIdx,1));
+stats.skw.mu=nanmean(skwIdx);
+stats.skw.sem=sqrt(numIt/(numIt-1)*nanvar(skwIdx,1));
 stats.skw.distr=skwIdx;
 
 
@@ -134,8 +140,8 @@ end
 
 %% period
 periods=diff(brd(:,[1 3]),1,2);
-stats.period.mu=mean(periods);
-stats.period.sem=sqrt(numIt/(numIt-1)*var(periods,1));
+stats.period.mu=nanmean(periods);
+stats.period.sem=sqrt(numIt/(numIt-1)*nanvar(periods,1));
 stats.period.distr=periods;
 
 
@@ -145,7 +151,7 @@ stats.period.p_t=1-tcdf(abs(t),numIt-1);
 % 95% confidence
 alpha=.05;
 try
-  stats.period.CI= quantile(period,[alpha/2 1-alpha/2]);
+  stats.period.CI= quantile(periods,[alpha/2 1-alpha/2]);
 end
 
 
@@ -155,6 +161,7 @@ set(0,'CurrentFigure',h)
 
 function Y=quantile(x, p)
 % only takes vectors
+x=x(~isnan(x));
 x=sort(x,1);
 L=size(x,1);
 Y=nan(numel(p),1);

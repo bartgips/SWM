@@ -1,4 +1,4 @@
-function [skwIdx, brdOut, xOut]=bg_skewness_pktg_smooth(x)
+function [skwIdx, brdOut, xOut]=bg_skewness_pktg_smooth(x,bias)
 % [skwIdx, brdOut, xOut]=bg_skewness_pktg_smooth(x)
 % Calculates skewness by finding the extrema of a shape. This shape is
 % first interpolated (cubic spline) 100-fold.
@@ -13,6 +13,11 @@ function [skwIdx, brdOut, xOut]=bg_skewness_pktg_smooth(x)
 % x:    Matrix containing the shapes of which the skewness should be
 %       quantified. Matrix should be NxM where N is the number of
 %       timepoints and M is the number of shapes.
+% bias: (optional) Index biasing the algorithm to picking a period closest
+%       to this index. (When the shape contains more than 1.5 period it
+%       could detect pk-tg-pk or tg-pk-tg, the bias can force the algorithm
+%       to always pick one of the two.)
+%       (default= centre of window, i.e. N/2+.5);
 % 
 % %%%%%%%
 % OUTPUT:
@@ -30,7 +35,9 @@ if isrow(x)
   x=x(:);
 end
 
-
+if nargin<2
+  bias=size(x,1)/2+.5;
+end
 
 % demean
 x=bsxfun(@minus,x,nanmean(x));
@@ -46,6 +53,7 @@ skwIdx=nan(size(x,2),1);
 brdOut=nan(size(x,2),3);
 
 interpFac=100; %increase resolution 100-fold;
+bias=bias*interpFac;
 
 if nargout>2
   xOut=nan(L*interpFac,size(x,2));
@@ -70,8 +78,9 @@ for n=1:size(x,2)
   brd=zeroCross(mLenidx+[0:2]-1);
   sigma=0;
   breakloop=false;
+  meanperiod=diff(brd([1 3]));
   
-  while diff(brd([1 3]))<.8*periodEst || breakloop
+  while meanperiod<.8*periodEst || breakloop
     
     sigma=sigma+interpFac/2;
     tau=-4*sigma:4*sigma;
@@ -82,24 +91,33 @@ for n=1:size(x,2)
     dxsmth=dxsmth(1:end-1,:);
     
     zeroCross=bg_find_zerocross(dxsmth);
-    % pktgIdx=sign(diff(xsmth(zeroCross)));
-    % pktgIdx=[-pktgIdx(1,:); pktgIdx];
+    pktgIdx=sign(diff(xsmth(zeroCross)));
+    pktgIdx=[pktgIdx(1:end-1)];
     
-    % find the two most central extrema
-    slopePos=1./abs(zeroCross-zeroCross(end)/2);
-    [~,mLenidx]=max(conv(slopePos,ones(1,3),'same'));
-    brd=zeroCross(mLenidx+[0:2]-1);
+    meanperiod=zeroCross(2:end-1);
+    meanperiod=(mean(diff(zeroCross(pktgIdx<0)))+mean(diff(zeroCross(pktgIdx>0))))/2;
+    
     
     if sigma>periodEst/2
       breakloop=true;
-    end
+    end 
     
 %     figure(5)
 %     plot(xsmth)
-%     vline(brd)
+%     vline(zeroCross)
 %     drawnow
 %     pause
   end
+  
+  % find the period that's most central
+  zeroCross=zeroCross(2:end-1);
+  dist=nan(numel(zeroCross)-2,1);
+  for k=1:numel(zeroCross)-2
+    dist(k)=max(abs(zeroCross([0:2]+k)-bias));
+  end  
+  [~,mLenidx]=min(dist);
+  brd=zeroCross(mLenidx+[0:2]);
+  
   xOut(:,n)=xsmth;
   
   slopeLen=diff(brd);
