@@ -116,6 +116,9 @@ function [cfg]=bg_SWM(cfg, dat)
 %                 diskspace. given when cfg.fullOutput=0;
 % .costTotal_end:   The cost values, but only for the final 2000 iterations.
 %                 Given when cfg.fullOutput=0;
+% 
+% 
+% Bart Gips 2014
 
 %% check validity of input fields
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
@@ -137,6 +140,7 @@ end
 if nargin<2
   dum=load(cfg.fname, cfg.varname);
   eval(['dat=dum.' cfg.varname ';'])
+  clear dum
 else
   cfg.fname='function input';
   cfg.varname='N/A';
@@ -147,7 +151,7 @@ if iscolumn(dat);
   dat=dat.';
 end
 
-nanSel=isnan(dat);
+nanSel=sparse(isnan(dat));
 nanFlag=any(nanSel(:));
 if nanFlag
   warning(['Data contains ' num2str(round(sum(nanSel(:))/numel(nanSel)*100)) '% NaNs. Correct convergence is not guaranteed.'])
@@ -164,6 +168,21 @@ else
   spec=spec(1:nfft/2+1,:);
   [~,midx]=max(mean(abs(spec).^2,2));
   shapeLen=nfft/midx;
+  if size(dat,2)>200*shapeLen %multitaper to reduce noise
+    clear spec
+    mtLen=round(100*shapeLen);
+    taper=hanning(mtLen);
+    reshapedum=ceil(numel(dat)/mtLen);
+    datdum=zeros(size(dat,1),reshapedum*mtLen);
+    datdum(:,1:size(dat,2))=dat;
+    datdum=reshape(datdum.',mtLen,reshapedum).';
+    datdum=bsxfun(@times,datdum,taper.');
+    nfft=2^nextpow2(mtLen)*4;
+    spec=fft(diff(datdum,1,2)',nfft);
+    spec=spec(1:nfft/2+1,:);
+    [~,midx]=max(mean(abs(spec).^2,2));
+    shapeLen=nfft/midx;
+  end
   if isfield(cfg,'winLenFac')
     winLen=round(cfg.winLenFac*shapeLen);
   else
@@ -318,7 +337,7 @@ if isfield(cfg,'Tfac')
   cfg.nPT=nPT;
 else
   if nPT>1
-    Tfac=logspace(-3,1,nPT);
+    Tfac=logspace(-4,0,nPT);
   else
     Tfac=1e-4;
   end
@@ -875,7 +894,7 @@ for n=1:numClust
   cfg.best_s(:,n)=nanmean(dum_s,1);
   cfg.best_z(:,n)=nanmean(bsxfun(@rdivide,bsxfun(@minus,dum_s,mean(dum_s,2)),std(dum_s,1,2)),1);
   
-  cfg.costDistr{n}=cost_i(dum_s);
+  cfg.costDistr{n}=cost_i(z_score(dum_s));
 end
 
 % sort in alphabetical order
@@ -964,3 +983,7 @@ sx=std(x(sel),varargin{1});
 
 function current_figure(h)
 set(0,'CurrentFigure',h)
+
+function z=z_score(x)
+x=bsxfun(@minus,x,nanmean(x));
+z=bsxfun(@rdivide,x,nanstd(x));

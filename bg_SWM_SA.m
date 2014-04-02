@@ -3,7 +3,8 @@ function [cfg]=bg_SWM_SA(cfg, dat)
 %
 % Sliding Window Matching algorithm for detecting consistent, reocurring
 % shapes in a data set. Using simulated annealing. Useful when minumum is
-% found by bg_SWM, but temperature was still to high.
+% found by bg_SWM, but temperature was still to high, and therefore
+% convergence not yet complete.
 %
 % %%%%%%%
 % INPUT:
@@ -23,7 +24,7 @@ function [cfg]=bg_SWM_SA(cfg, dat)
 % OR
 % .winLenFac: Determines .winLen based on the peak in the 1/f-corrected
 %             power spectrum of the data. If .winLen is omitted it will be
-%             set to .winLenFac*T. Where T is the period corresponding to 
+%             set to .winLenFac*T. Where T is the period corresponding to
 %             the peak in the power spectrum.
 %
 % Optional fields (they all have a default value):
@@ -63,8 +64,8 @@ function [cfg]=bg_SWM_SA(cfg, dat)
 %             When .Fbs is supplied, the function first applies a bandstop
 %             filter to the data before performing the SWM
 % .Fhp:       High-Pass cut-off frequency. use as above.
-% .FhpFac:    High-Pass, but similar to .winLenFac, this applies filtering 
-%             relative to the peak frequency in the data. E.g. when the 
+% .FhpFac:    High-Pass, but similar to .winLenFac, this applies filtering
+%             relative to the peak frequency in the data. E.g. when the
 %             main component is 10 Hz and .FhpFac=.5 it will apply 5 Hz HP
 %             filtering.
 % .Flp:       Low-Pass cut-off frequency. use as above.
@@ -104,8 +105,11 @@ function [cfg]=bg_SWM_SA(cfg, dat)
 %                 seperately. Only given when cfg.fullOutput=1.
 % .totcost_unSamp:As above, but undersampled by a factor 100 to save
 %                 diskspace. given when cfg.fullOutput=0;
-% .costTotal_end:   The cost values, but only for the final 2000 iterations.
+% .costTotal_end: The cost values, but only for the final 2000 iterations.
 %                 Given when cfg.fullOutput=0;
+%
+%
+% Bart Gips 2014
 
 %% check validity of input fields
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
@@ -154,6 +158,21 @@ else
   spec=spec(1:nfft/2+1,:);
   [~,midx]=max(mean(abs(spec).^2,2));
   shapeLen=nfft/midx;
+  if size(dat,2)>200*shapeLen %multitaper to reduce noise
+    clear spec
+    mtLen=2^nextpow2(50*shapeLen)+1;
+    taper=hanning(mtLen);
+    reshapedum=ceil(numel(dat)/mtLen);
+    datdum=zeros(size(dat,1),reshapedum*mtLen);
+    datdum(:,1:size(dat,2))=dat;
+    datdum=reshape(datdum.',mtLen,reshapedum).';
+    datdum=bsxfun(@times,datdum,taper.');
+    nfft=2^nextpow2(mtLen);
+    spec=fft(diff(datdum,1,2)',nfft);
+    spec=spec(1:nfft/2+1,:);
+    [~,midx]=max(mean(abs(spec).^2,2));
+    shapeLen=nfft/midx;
+  end
   if isfield(cfg,'winLenFac')
     winLen=round(cfg.winLenFac*shapeLen);
   else
@@ -273,8 +292,10 @@ end
 
 % Do not use CoM weighting
 if isfield(cfg,'ratio')
-%   ratio=cfg.ratio;
-% else
+  %   ratio=cfg.ratio;
+  ratio=0;
+  cfg.ratio=ratio;
+else
   ratio=0;
   cfg.ratio=ratio;
 end
@@ -309,7 +330,12 @@ elseif isfield(cfg,'loc')
   end
   
 else
-  error('location of windows missing (cfg.loc or cfg.best_loc)')
+  warning('location of windows missing (cfg.loc or cfg.best_loc); generating random initial window placement')
+  if numWin
+    [loc, numWin]=initloc(guard,winLen,dat,numWin);
+  else
+    [loc, numWin]=initloc(guard,winLen,dat);
+  end
 end
 
 
@@ -432,13 +458,13 @@ costCoM=nansum(costCoM_i(:,1));
 
 if clustInit
   clust=cell(1);
-  clustID=nan(numTemplates,T);
+  clustID=nan(numTemplates,1);
   clustID(:,1)=1;
   [trldum tidxdum]=ind2sub([numTrl, numWin],locSelInd);
   clust{1}.linIdx=locSelInd;
   clust{1}.trl=trldum;
   clust{1}.tidx=tidxdum;
-  clust{1}.numTemplates=numel(locSelInd);  
+  clust{1}.numTemplates=numel(locSelInd);
   
 else %only reconstruct clust ID and initial cost
   if ~exist('clustID','var')
@@ -559,18 +585,18 @@ while iter<numIt &&  ~stopToken
       [trl tidx]=ind2sub([numTrl,numWin],lidx);
       
       pLoc=loc(trl,tidx);
-%       pLoc=loc{T}(trl,tidx);
+      %       pLoc=loc{T}(trl,tidx);
       locChange=0;
       loopcount=0;
       while ~locChange && loopcount<11 %find a possible step; Brute force for maximally 10 times
         dir=((rand>0.5)-0.5)*2*randval(stepSz);
         nLoc=pLoc+dir;
         locChange= nLoc>0 && size(dat,2)-nLoc>=winLen;
-%         locChange= nLoc>0 && loc{T}(trl,tidx+1)-nLoc>=guard;
+        %         locChange= nLoc>0 && loc{T}(trl,tidx+1)-nLoc>=guard;
         
         if tidx>1 && locChange %check guard to the left of the sample as well
           locChange=nLoc-loc(trl,tidx-1) >= guard;
-%           locChange=nLoc-loc{T}(trl,tidx-1) >= guard;
+          %           locChange=nLoc-loc{T}(trl,tidx-1) >= guard;
         end
         
         loopcount=loopcount+1;
@@ -631,7 +657,7 @@ while iter<numIt &&  ~stopToken
       if accept
         %update everything with new values
         loc(trl,tidx)=nLoc;
-%         loc{T}(trl,tidx)=nLoc;
+        %         loc{T}(trl,tidx)=nLoc;
         clust{clustidx,T}.z_isum=z_sumdum;
         if nanFlag
           clust{clustidx,T}.noNanCount=noNanCountdum;
@@ -647,7 +673,7 @@ while iter<numIt &&  ~stopToken
           if mincostTot>D(T);
             mincostTot=D(T);
             tloc=loc;
-%             tloc=loc{T};
+            %             tloc=loc{T};
           end
           costMin(T)=D(T);
           cc(T)=0;
@@ -718,7 +744,7 @@ while iter<numIt &&  ~stopToken
           if mincostTot>D(T);
             mincostTot=D(T);
             tloc=loc;
-%             tloc=loc{T};
+            %             tloc=loc{T};
             tclustID=clustID(:,T);
             tclust=clust(:,T);
             for nn=1:numClust
@@ -741,7 +767,7 @@ while iter<numIt &&  ~stopToken
   % Every couple of iterations, try to lower the temperature (simulated
   % annealing)
   if TchangeIterCount >= TchangeCheck
-    if TchangeToken > 5 % after five unsuccesful Temperature changes decrease stepsize 
+    if TchangeToken > 5 % after five unsuccesful Temperature changes decrease stepsize
       if stepSz==2
         stopToken=1;
       end
@@ -775,11 +801,11 @@ while iter<numIt &&  ~stopToken
     plotselIter=max(1,iter-10e3):iter;
     plot(plotselIter,costTotal(:,plotselIter)','linewidth',2)
     xlim([plotselIter(1) plotselIter(1)+10e3-1])
-%     if plotLegend
-      hleg=legend(num2str(Tfac(:),'%1.2e'));
-      set(get(hleg,'title'),'string','Tfac')
-%       plotLegend=0;
-%     end
+    %     if plotLegend
+    hleg=legend(num2str(Tfac(:),'%1.2e'));
+    set(get(hleg,'title'),'string','Tfac')
+    %       plotLegend=0;
+    %     end
     subplot(1,2,2)
     
     for TT=1:numel(plotSelT)
@@ -862,7 +888,7 @@ for n=1:numClust
   cfg.best_s(:,n)=nanmean(dum_s,1);
   cfg.best_z(:,n)=nanmean(bsxfun(@rdivide,bsxfun(@minus,dum_s,mean(dum_s,2)),std(dum_s,1,2)),1);
   
-  cfg.costDistr{n}=cost_i(dum_s);
+  cfg.costDistr{n}=cost_i(z_score(dum_s));
 end
 
 cfg.Tfac=Tfac;
@@ -953,3 +979,7 @@ sx=std(x(sel),varargin{1});
 
 function current_figure(h)
 set(0,'CurrentFigure',h)
+
+function z=z_score(x)
+x=bsxfun(@minus,x,nanmean(x));
+z=bsxfun(@rdivide,x,nanstd(x));
