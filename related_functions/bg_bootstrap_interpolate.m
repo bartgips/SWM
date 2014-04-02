@@ -44,7 +44,7 @@ function [stats]=bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, fignum
 % stats:  a structure containing the calculated statistics:
 % firstly it contains two fields for visualization:
 % .meanShape: the mean shape used for detecting asymmetry (interpolated)
-% .extrema:   the mean positions of the extrema used for the calculation
+% .extrema:   the median of the positions of the extrema used for the calculation
 %
 % stats contains 2 sub structures .skw and .period. These contain the
 % statistics on both skewness and period respectively.
@@ -164,7 +164,7 @@ try
 end
 
 %% mean extrema positions and shape
-stats.extrema=nanmean(brd);
+stats.extrema=[quantile(brd(:,1),.5) quantile(brd(:,2),.5) quantile(brd(:,3),.5)];
 cutout_dum=stats.extrema([1 3]);
 cutout_dum=round(cutout_dum+[-1 1]*.25*diff(cutout_dum));
 meanShapeDum=nanmean(shapeMat)';
