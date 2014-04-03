@@ -986,4 +986,4 @@ set(0,'CurrentFigure',h)
 
 function z=z_score(x)
 x=bsxfun(@minus,x,nanmean(x));
-z=bsxfun(@rdivide,x,nanstd(x));
+z=bsxfun(@rdivide,x,sqrt(nanvar(x)));
