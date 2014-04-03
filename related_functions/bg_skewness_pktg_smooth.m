@@ -70,15 +70,13 @@ for n=1:size(x,2)
   
   zeroCross=bg_find_zerocross(dx);
   pktgIdx=sign(diff(xint(zeroCross)));
-  pktgIdx=[-pktgIdx(1,:); pktgIdx];
+  pktgIdx=[pktgIdx(1:end-1)];
   
-  % find the three extrema closest to "bias"
-  slopePos=1./abs(zeroCross-bias);
-  [~,mLenidx]=max(conv(slopePos,ones(1,3),'same'));
-  brd=zeroCross(mLenidx+[0:2]-1);
   sigma=0;
   breakloop=false;
-  meanperiod=diff(brd([1 3]));
+  meanperiod=zeroCross(2:end-1);
+  meanperiod=(mean(diff(meanperiod(pktgIdx<0)))+mean(diff(meanperiod(pktgIdx>0))))/2;
+    
   xsmth=xint;
   while meanperiod<.8*periodEst || breakloop
     
@@ -101,7 +99,7 @@ for n=1:size(x,2)
     if sigma>periodEst/2
       breakloop=true;
     end 
-%     
+    
 %     figure(100)
 %     plot(xsmth)
 %     vline(zeroCross)
@@ -109,11 +107,11 @@ for n=1:size(x,2)
 %     pause
   end
   
-  % find the period that's most central
+  % find the period that's closest to the bias
   zeroCross=zeroCross(2:end-1);
   dist=nan(numel(zeroCross)-2,1);
   for k=1:numel(zeroCross)-2
-    dist(k)=max(abs(zeroCross([0:2]+k)-bias));
+    dist(k)=(abs(zeroCross([1]+k)-bias));
   end  
   [~,mLenidx]=min(dist);
   brd=zeroCross(mLenidx+[0:2]);

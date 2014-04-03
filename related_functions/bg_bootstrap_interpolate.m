@@ -113,6 +113,10 @@ for iter=1:numIt
   
     [skwIdx(iter), brd(iter,:), meanShapeInt]=bg_skewness_pktg_smooth(meanShape,bias);
     
+    if iter==1
+      % make sure that bootstrapping will always focus on the same period
+      bias= mean(brd(iter,[2]))/100;
+    end
     
     if nargin >4 && fignum
       current_figure(fignum)
