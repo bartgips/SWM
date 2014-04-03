@@ -53,6 +53,11 @@ skwIdx=nan(size(x,2),1);
 brdOut=nan(size(x,2),3);
 
 interpFac=100; %increase resolution 100-fold;
+
+if numel(bias)==1;
+  bias=[bias-1 bias bias+1];
+end
+
 bias=bias*interpFac;
 
 if nargout>2
@@ -111,7 +116,7 @@ for n=1:size(x,2)
   zeroCross=zeroCross(2:end-1);
   dist=nan(numel(zeroCross)-2,1);
   for k=1:numel(zeroCross)-2
-    dist(k)=(abs(zeroCross([1]+k)-bias));
+    dist(k)=sum(abs(zeroCross([0:2]+k)-bias));
   end  
   [~,mLenidx]=min(dist);
   brd=zeroCross(mLenidx+[0:2]);

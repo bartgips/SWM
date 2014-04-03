@@ -95,8 +95,12 @@ ftshape=fft(nanmean(shapeMat),nfft);
 shapeLen=round(nfft/midx);
 varShape=nanvar(shapeMat);
 bias=conv(varShape,ones(1,shapeLen),'valid');
-[~,bias]=min(bias);
-bias=bias+shapeLen/2+.5;
+% push shapes towards centre (increase cost of edges by 5%)
+parabola=[1:numel(bias)]-numel(bias)/2-.5;
+parabola=parabola/parabola(end);
+parabola=1+parabola.^2*.05;
+[~,bias]=min(bias.*parabola);
+bias=[bias bias+shapeLen/2+.5 bias+shapeLen];
 
 
 for iter=1:numIt
@@ -115,7 +119,7 @@ for iter=1:numIt
     
     if iter==1
       % make sure that bootstrapping will always focus on the same period
-      bias= mean(brd(iter,[2]))/100;
+      bias= brd(iter,:)/100;
     end
     
     if nargin >4 && fignum
