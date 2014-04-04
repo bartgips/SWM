@@ -240,13 +240,36 @@ if isfield(cfg,'Fhp')
 end
 
 if isfield(cfg,'FhpFac')
-  if exist(Fhp,'var')
+  if exist('Fhp','var')
     warning('Applying double HP filtering. Based on both .Fhp and .FhpFac. This may not be desired.')
   end
   if isfield(cfg,'fs')
     fs=cfg.fs;
   else
     error('Sampling rate missing. High-pass filter is not possible without cfg.fs')
+  end
+  if ~exist('shapeLen','var')
+    dat(nanSel)=0;
+    nfft=2^nextpow2(size(dat,2))*4;
+    spec=fft(diff(dat,1,2)',nfft);
+    spec=spec(1:nfft/2+1,:);
+    [~,midx]=max(mean(abs(spec).^2,2));
+    shapeLen=nfft/midx;
+    if size(dat,2)>200*shapeLen %multitaper to reduce noise
+      clear spec
+      mtLen=round(100*shapeLen);
+      taper=hanning(mtLen);
+      reshapedum=ceil(numel(dat)/mtLen);
+      datdum=zeros(size(dat,1),reshapedum*mtLen);
+      datdum(:,1:size(dat,2))=dat;
+      datdum=reshape(datdum.',mtLen,reshapedum).';
+      datdum=bsxfun(@times,datdum,taper.');
+      nfft=2^nextpow2(mtLen)*4;
+      spec=fft(diff(datdum,1,2)',nfft);
+      spec=spec(1:nfft/2+1,:);
+      [~,midx]=max(mean(abs(spec).^2,2));
+      shapeLen=nfft/midx;
+    end
   end
   Fhp=1/(shapeLen/fs)*cfg.FhpFac;
   Fhp=Fhp(:);
@@ -592,11 +615,13 @@ while iter<numIt &&  ~stopToken
         dir=((rand>0.5)-0.5)*2*randval(stepSz);
         nLoc=pLoc+dir;
         locChange= nLoc>0 && size(dat,2)-nLoc>=winLen;
-        %         locChange= nLoc>0 && loc{T}(trl,tidx+1)-nLoc>=guard;
         
-        if tidx>1 && locChange %check guard to the left of the sample as well
-          locChange=nLoc-loc(trl,tidx-1) >= guard;
-          %           locChange=nLoc-loc{T}(trl,tidx-1) >= guard;
+        if locChange
+          %check guard:
+          otherWinSel=true(numWin,1);
+          otherWinSel(tidx)=false;
+          minDist=min(abs(loc(trl,otherWinSel)-nLoc));
+          locChange= minDist >= guard;
         end
         
         loopcount=loopcount+1;
@@ -942,12 +967,12 @@ else
   end
 end
 
-loc=nan(size(data,1),numWin+1);
+loc=nan(size(data,1),numWin);
 for n=1:len(1)
   dum2=dum+randval([guard, numel(dum)])-1;
   dum2=min(dum2,len(2)-winLen+1);
   sel=randperm(numel(dum2),numWin);
-  loc(n,:)=[dum2(sel) size(data,2)+guard-winLen];
+  loc(n,:)=[dum2(sel)];
 end
 
 function D_i=cost_i(z_s)

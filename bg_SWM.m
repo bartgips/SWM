@@ -22,7 +22,7 @@ function [cfg]=bg_SWM(cfg, dat)
 % OR
 % .winLenFac: Determines .winLen based on the peak in the 1/f-corrected
 %             power spectrum of the data. If .winLen is omitted it will be
-%             set to .winLenFac*T. Where T is the period corresponding to 
+%             set to .winLenFac*T. Where T is the period corresponding to
 %             the peak in the power spectrum.
 %
 % Optional fields (they all have a default value):
@@ -68,8 +68,8 @@ function [cfg]=bg_SWM(cfg, dat)
 %             When .Fbs is supplied, the function first applies a bandstop
 %             filter to the data before performing the SWM
 % .Fhp:       High-Pass cut-off frequency. use as above.
-% .FhpFac:    High-Pass, but similar to .winLenFac, this applies filtering 
-%             relative to the peak frequency in the data. E.g. when the 
+% .FhpFac:    High-Pass, but similar to .winLenFac, this applies filtering
+%             relative to the peak frequency in the data. E.g. when the
 %             main component is 10 Hz and .FhpFac=.5 it will apply 5 Hz HP
 %             filtering.
 % .Flp:       Low-Pass cut-off frequency. use as above.
@@ -116,8 +116,8 @@ function [cfg]=bg_SWM(cfg, dat)
 %                 diskspace. given when cfg.fullOutput=0;
 % .costTotal_end:   The cost values, but only for the final 2000 iterations.
 %                 Given when cfg.fullOutput=0;
-% 
-% 
+%
+%
 % Bart Gips 2014
 
 %% check validity of input fields
@@ -250,13 +250,36 @@ if isfield(cfg,'Fhp')
 end
 
 if isfield(cfg,'FhpFac')
-  if exist(Fhp,'var')
+  if exist('Fhp','var')
     warning('Applying double HP filtering. Based on both .Fhp and .FhpFac. This may not be desired.')
   end
   if isfield(cfg,'fs')
     fs=cfg.fs;
   else
     error('Sampling rate missing. High-pass filter is not possible without cfg.fs')
+  end
+  if ~exist('shapeLen','var')
+    dat(nanSel)=0;
+    nfft=2^nextpow2(size(dat,2))*4;
+    spec=fft(diff(dat,1,2)',nfft);
+    spec=spec(1:nfft/2+1,:);
+    [~,midx]=max(mean(abs(spec).^2,2));
+    shapeLen=nfft/midx;
+    if size(dat,2)>200*shapeLen %multitaper to reduce noise
+      clear spec
+      mtLen=round(100*shapeLen);
+      taper=hanning(mtLen);
+      reshapedum=ceil(numel(dat)/mtLen);
+      datdum=zeros(size(dat,1),reshapedum*mtLen);
+      datdum(:,1:size(dat,2))=dat;
+      datdum=reshape(datdum.',mtLen,reshapedum).';
+      datdum=bsxfun(@times,datdum,taper.');
+      nfft=2^nextpow2(mtLen)*4;
+      spec=fft(diff(datdum,1,2)',nfft);
+      spec=spec(1:nfft/2+1,:);
+      [~,midx]=max(mean(abs(spec).^2,2));
+      shapeLen=nfft/midx;
+    end
   end
   Fhp=1/(shapeLen/fs)*cfg.FhpFac;
   Fhp=Fhp(:);
@@ -356,9 +379,17 @@ if isfield(cfg,'loc')
   if numel(loc)~= nPT || size(loc{1},1)~=size(dat,1)
     error('location is not correct')
   end
+  if isfield(cfg,'best_loc')
+    loc{1}=cfg.best_loc;
+  end
 else
   loc=cell(1,nPT);
-  for n=1:nPT
+  locStart=1;
+  if isfield(cfg,'best_loc')
+    loc{1}=cfg.best_loc;
+    locStart=2;
+  end
+  for n=locStart:nPT
     if ~debug || n<2
       if numWin
         [loc{n}, numWin]=initloc(guard,winLen,dat,numWin);
@@ -371,10 +402,6 @@ else
   end
   tloc=loc{end};
   cfg.numWin=numWin;
-end
-
-if isfield(cfg,'best_loc')
-  loc{1}=cfg.best_loc;
 end
 
 if isfield(cfg,'numClust')
@@ -402,8 +429,6 @@ if isfield(cfg,'dispPlot')
 else
   dispPlot=verbose;
 end
-
-
 
 
 if isfield(cfg,'fullOutput')
@@ -607,10 +632,14 @@ while iter<numIt %&&  cc<cclim
       while ~locChange && loopcount<11 %find a possible step; Brute force for maximally 10 times
         dir=((rand>0.5)-0.5)*2*randval(floor(guard/2));
         nLoc=pLoc+dir;
-        locChange= nLoc>0 && loc{T}(trl,tidx+1)-nLoc>=guard;
+        locChange= nLoc>0 && size(dat,2)-nLoc>=winLen;
         
-        if tidx>1 && locChange %check guard to the left of the sample as well
-          locChange=nLoc-loc{T}(trl,tidx-1) >= guard;
+        if locChange
+          %check guard:
+          otherWinSel=true(numWin,1);
+          otherWinSel(tidx)=false;
+          minDist=min(abs(loc{T}(trl,otherWinSel)-nLoc));
+          locChange= minDist >= guard;
         end
         
         loopcount=loopcount+1;
@@ -851,7 +880,7 @@ try
   cfg.best_loc=tloc;
 catch
   cfg.best_loc=nan;
-  tloc=loc{end};
+  tloc=loc{1};
 end
 try
   cfg.best_clustID=tclustID;
@@ -946,12 +975,12 @@ else
   end
 end
 
-loc=nan(size(data,1),numWin+1);
+loc=nan(size(data,1),numWin);
 for n=1:len(1)
   dum2=dum+randval([guard, numel(dum)])-1;
   dum2=min(dum2,len(2)-winLen+1);
   sel=randperm(numel(dum2),numWin);
-  loc(n,:)=[dum2(sel) size(data,2)+guard-winLen];
+  loc(n,:)=[dum2(sel)];
 end
 
 function D_i=cost_i(z_s)
