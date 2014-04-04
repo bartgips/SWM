@@ -273,6 +273,7 @@ if isfield(cfg,'FhpFac')
   end
   Fhp=1/(shapeLen/fs)*cfg.FhpFac;
   Fhp=Fhp(:);
+  cfg.Fhp=Fhp;
   for freq=1:size(Fhp,1)
     dat=ft_preproc_highpassfilter(dat, fs, Fhp(freq),[],filttype);
   end

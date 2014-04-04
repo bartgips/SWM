@@ -31,19 +31,31 @@ else
   verbose=1;
 end
 
-if isfield(cfg,'bestloc')
-  loc=cfg.bestloc;
+if isfield(cfg,'best_loc')
+  loc=cfg.best_loc;
 else
   loc=cfg.loc;
 end
 
-if isfield(cfg,'newlen') && isfield(cfg,'addlen')
-  loc=loc-cfg.addlen;
-  cfg.winLen=cfg.newlen;
+if isfield(cfg,'newLen')
+  addLen=round((newLen-winLen)/2);
+  cfg.addLen=addLen;
+  newLen=winLen+2*addLen;
+  cfg.newLen=newLen;
 end
 
-if isfield(cfg,'bestclust')
-  cfg.clust=cfg.bestclust;
+if isfield(cfg,'best_clust')
+  cfg.clust=cfg.best_clust;
+end
+
+if isfield(cfg,'derivative')
+  derivative=cfg.derivative;
+else
+  derivative=0;
+end
+
+if derivative
+  dat=diff(dat,1,2);
 end
 
 winLen=cfg.winLen;
@@ -60,7 +72,7 @@ if verbose
   fprintf('\nGenerating TFR of data in groups of %d trials/channels...\n',groupsz)
   reverseStr='';
 end
-TFR=zeros(numel(freqoi),cfg.winLen,cfg.numclust);
+TFR=zeros(numel(freqoi),cfg.winLen,cfg.numClust);
 avg=TFR;
 avgdum=TFR;
 stddumM=TFR;
@@ -93,7 +105,7 @@ for n=1:numgroups
  
   
   avgdum=0*avgdum;
-  for kk=1:cfg.numclust
+  for kk=1:cfg.numClust
     sel=find((cfg.clust{kk}.trl<(n*groupsz+1) & cfg.clust{kk}.trl>(n-1)*groupsz));
     trl=cfg.clust{kk}.trl(sel)-(n-1)*groupsz;
     tidx=cfg.clust{kk}.tidx(sel);
