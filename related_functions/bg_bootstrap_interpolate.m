@@ -95,10 +95,10 @@ ftshape=fft(nanmean(shapeMat),nfft);
 shapeLen=round(nfft/midx);
 varShape=nanvar(shapeMat);
 bias=conv(varShape,ones(1,shapeLen),'valid');
-% push shapes towards centre (increase cost of edges by 5%)
+% push shapes towards centre (increase cost of edges by 10%)
 parabola=[1:numel(bias)]-numel(bias)/2-.5;
 parabola=parabola/parabola(end);
-parabola=1+parabola.^2*.05;
+parabola=1+parabola.^2*.1;
 [~,bias]=min(bias.*parabola);
 bias=[bias bias+shapeLen/2+.5 bias+shapeLen];
 
