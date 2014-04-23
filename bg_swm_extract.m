@@ -1,5 +1,5 @@
-function [z, s, cfg]=bg_swm_extract(cfg,dat)
-% [z, s, cfg]=bg_swm_extract(dat,cfg)
+function [z, s, cfg]=bg_swm_extract(cfg, dat)
+% [z, s, cfg]=bg_swm_extract(cfg, dat)
 %
 % input:
 % cfg:    output from bg_SWM
@@ -128,7 +128,7 @@ if isfield(cfg,'best_clust')
 end
 
 
-if isfield(cfg,'clust')
+if isfield(cfg,'clust') && numel(cfg.clust)>1
   clustering=true;
   s=cell(1,cfg.numclust);
   for n=1:numel(s)
