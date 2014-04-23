@@ -44,6 +44,11 @@ else
   cfg.type=type;
 end
 
+if isfield(cfg,'numTemplates')
+  cfg.maxlocs=cfg.numTemplates;
+end
+
+
 switch type
   case 'gauss'
     dt = 1/fs;
@@ -83,7 +88,7 @@ end
 
 if isfield(cfg,'maxlocs') %only extract highest power
   maxlocs=cfg.maxlocs;
-  cfg.bestloc=nan(numtrials,maxlocs);
+  cfg.best_loc=nan(numtrials,maxlocs);
   for trialsel=1:numtrials;
     nansel=~isnan(loc(trialsel,:));
     locdum=loc(trialsel,nansel);
@@ -93,21 +98,21 @@ if isfield(cfg,'maxlocs') %only extract highest power
     if numel(sel)>maxlocs
       sel=sel(1:maxlocs);
     end
-    cfg.bestloc(trialsel,1:numel(sel))=sort(locdum(sel));
+    cfg.best_loc(trialsel,1:numel(sel))=sort(locdum(sel));
   end
-  cfg.bestloc=cfg.bestloc-floor(winLen/2);
-  cfg.bestloc=[cfg.bestloc ones(numtrials,1)*size(dat,2)];
+  cfg.best_loc=cfg.best_loc-floor(winLen/2);
+  cfg.best_loc=[cfg.best_loc ones(numtrials,1)*size(dat,2)];
   cfg.bestclust{1}.numtemplates=numtrials*maxlocs;
   
 else
-  cfg.bestloc=loc;
-  cfg.bestloc=cfg.bestloc-floor(winLen/2);
+  cfg.best_loc=loc;
+  cfg.best_loc=cfg.best_loc-floor(winLen/2);
   cfg.bestclust{1}.numtemplates=numel(loc)-size(loc,1);
 end
 
-cfg.bestclust{1}.trl=repmat([1:numtrials]',1,size(cfg.bestloc,2)-1);
-cfg.bestclust{1}.tidx=repmat(1:size(cfg.bestloc,2)-1,size(cfg.bestloc,1),1);
-cfg.numtemplates=numtrials*(size(cfg.bestloc,2)-1);
+cfg.bestclust{1}.trl=repmat([1:numtrials]',1,size(cfg.best_loc,2)-1);
+cfg.bestclust{1}.tidx=repmat(1:size(cfg.best_loc,2)-1,size(cfg.best_loc,1),1);
+cfg.numtemplates=numtrials*(size(cfg.best_loc,2)-1);
 cfg.bestclust{1}.linidx=1:cfg.numtemplates;
 
 
