@@ -617,7 +617,7 @@ while iter<numIt &&  ~stopToken
         nLoc=pLoc+dir;
         locChange= nLoc>0 && size(dat,2)-nLoc>=winLen;
         
-        if locChange
+        if locChange && numWin>1
           %check guard:
           otherWinSel=true(numWin,1);
           otherWinSel(tidx)=false;
@@ -793,19 +793,19 @@ while iter<numIt &&  ~stopToken
   % Every couple of iterations, try to lower the temperature (simulated
   % annealing)
   if TchangeIterCount >= TchangeCheck
-    if TchangeToken > 5 % after five unsuccesful Temperature changes decrease stepsize
-      if stepSz==2
+    if TchangeToken > 2 % after 2 unsuccesful Temperature changes decrease stepsize
+      if stepSz==2 % if stepsize is lowest possible value, stop the algorithm
         stopToken=1;
       end
       stepSz=ceil(stepSz/2+.5);
-      TchangeToken=0;
+%       TchangeToken=0;
     else
       costDum=costTotal(:,iter-TchangeCheck+1:iter);
       [P,s,mu]=polyfit(1:TchangeCheck,costDum,1);
       ste = sqrt(diag(inv(s.R)*inv(s.R'))./s.normr.^2./s.df);
       if P(1)+2*ste(1) >0
         Tfac=Tfac/2;
-        TchangeToken=1;
+        TchangeToken=TchangeToken+1;
       else
         TchangeToken=0;
       end

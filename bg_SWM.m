@@ -635,7 +635,7 @@ while iter<numIt %&&  cc<cclim
         nLoc=pLoc+dir;
         locChange= nLoc>0 && size(dat,2)-nLoc>=winLen;
         
-        if locChange
+        if locChange && numWin>1
           %check guard:
           otherWinSel=true(numWin,1);
           otherWinSel(tidx)=false;
