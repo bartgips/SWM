@@ -1,5 +1,5 @@
-function [skwIdx, brdOut, xOut]=bg_skewness_pktg_smooth(x,bias)
-% [skwIdx, brdOut, xOut]=bg_skewness_pktg_smooth(x)
+function [skwIdx, brdOut, xOut]=bg_skewness_pktg_smooth(x, bias, interpFac)
+% [skwIdx, brdOut, xOut]=bg_skewness_pktg_smooth(x,bias)
 % Calculates skewness by finding the extrema of a shape. This shape is
 % first interpolated (cubic spline) 100-fold.
 % The extrema are found by detecting zero-crossings in the derivative.
@@ -46,13 +46,15 @@ x=bsxfun(@minus,x,nanmean(x));
 L=size(x,1);
 nfft=2^nextpow2(L*10);
 ftx=fft(x,nfft);
-ftxpow=abs(ftx(1:(nfft/2+1)));
+ftxpow=abs(ftx(1:(nfft/2+1),:));
 [~,periodEst]=max(ftxpow);
 periodEst=nfft./periodEst;
 skwIdx=nan(size(x,2),1);
 brdOut=nan(size(x,2),3);
 
+if nargin<3
 interpFac=100; %increase resolution 100-fold;
+end
 
 if numel(bias)==1;
   bias=[bias-1 bias bias+1];
@@ -70,7 +72,7 @@ for n=1:size(x,2)
   t=1:L;
   tint=linspace(1,L,ceil(interpFac*L));
   xint=spline(t',x(:,n),tint');
-  periodEst=periodEst*interpFac;
+  periodEstn=periodEst(n)*interpFac;
   dx=diff(xint);
   
   zeroCross=bg_find_zerocross(dx);
@@ -83,7 +85,7 @@ for n=1:size(x,2)
   meanperiod=(mean(diff(meanperiod(pktgIdx<0)))+mean(diff(meanperiod(pktgIdx>0))))/2;
     
   xsmth=xint;
-  while meanperiod<.8*periodEst || breakloop
+  while meanperiod<.8*periodEstn && ~breakloop
     
     sigma=sigma+interpFac/2;
     tau=-4*sigma:4*sigma;
@@ -101,7 +103,7 @@ for n=1:size(x,2)
     meanperiod=(mean(diff(meanperiod(pktgIdx<0)))+mean(diff(meanperiod(pktgIdx>0))))/2;
     
     
-    if sigma>periodEst/2
+    if sigma>periodEstn/2
       breakloop=true;
     end 
     
