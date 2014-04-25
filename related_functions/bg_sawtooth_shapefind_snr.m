@@ -63,7 +63,7 @@ signalOrig=signal+noise;
 % highpass
 signal=ft_preproc_highpassfilter(signalOrig',fs,frq*.5);
 
-%% WM
+%% SWM
 
 if verbose(1)
   disp('Sliding window matching...')
@@ -78,7 +78,7 @@ cfg=[];
 cfg.winLen=winLen;
 cfg.fs=fs;
 cfg.guard=guard;
-cfg.numIt=1e5;
+cfg.numIt=5e5;
 cfg.fullOutput=1;
 cfg.Tfac=1e-2;
 cfg.verbose=verbose(2);

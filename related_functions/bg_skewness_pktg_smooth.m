@@ -76,6 +76,7 @@ for n=1:size(x,2)
   dx=diff(xint);
   
   zeroCross=bg_find_zerocross(dx);
+  zeroCrossOrig=zeroCross;
   pktgIdx=sign(diff(xint(zeroCross)));
   pktgIdx=[pktgIdx(1:end-1)];
   
@@ -87,20 +88,29 @@ for n=1:size(x,2)
   xsmth=xint;
   while meanperiod<.8*periodEstn && ~breakloop
     
-    sigma=sigma+interpFac/2;
+    sigma=sigma+interpFac/10;
     tau=-4*sigma:4*sigma;
     h=exp(-tau'.^2/(2*sigma^2));
+    h=h/sum(h);
     
     xsmth=conv2(xint,h,'same');
     dxsmth=diff(xsmth);
     dxsmth=dxsmth(1:end-1,:);
     
     zeroCross=bg_find_zerocross(dxsmth);
-    pktgIdx=sign(diff(xsmth(zeroCross)));
-    pktgIdx=[pktgIdx(1:end-1)];
     
-    meanperiod=zeroCross(2:end-1);
-    meanperiod=(mean(diff(meanperiod(pktgIdx<0)))+mean(diff(meanperiod(pktgIdx>0))))/2;
+    pktgIdx=[nan; sign(diff(xsmth(zeroCross)))];
+    
+    % only consider peaks and troughs that are near the global max/min
+    pdist=min(abs(bsxfun(@minus,xsmth(zeroCross),minmax(xsmth))),[],2);
+    rmsel=pdist>.15*diff(minmax(xsmth));
+    rmsel([1 end])=true;
+    
+    
+    pktgIdx=pktgIdx(~rmsel);
+    zeroCross=zeroCross(~rmsel);
+    
+    meanperiod=(mean(diff(zeroCross(pktgIdx<0)))+mean(diff(zeroCross(pktgIdx>0))))/2;
     
     
     if sigma>periodEstn/2
@@ -115,13 +125,14 @@ for n=1:size(x,2)
   end
   
   % find the period that's closest to the bias
-  zeroCross=zeroCross(2:end-1);
+%   zeroCross=zeroCross(2:end-1);
   dist=nan(numel(zeroCross)-2,1);
   for k=1:numel(zeroCross)-2
     dist(k)=sum(abs(zeroCross([0:2]+k)-bias));
   end  
   [~,mLenidx]=min(dist);
   brd=zeroCross(mLenidx+[0:2]);
+  brd=zeroCrossOrig(bg_findnearest(zeroCrossOrig,brd));
   
   xOut(:,n)=xsmth;
   
