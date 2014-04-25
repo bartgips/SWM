@@ -124,7 +124,17 @@ if any(~ismember(inpFields,validInp))
   warning(sprintf(['Some fields in input cfg structure are invalid and are ignored:\n' repmat('  .%s\n',1,numel(badInp))],badInp{:}));
 end
 
+if isfield(cfg,'verbose')
+  verbose=cfg.verbose;
+else
+  verbose=true;
+end
 
+if isfield(cfg,'dispPlot')
+  dispPlot=cfg.dispPlot;
+else
+  dispPlot=verbose;
+end
 
 %% loading data
 % load data from file instead of from function input
@@ -354,7 +364,9 @@ elseif isfield(cfg,'loc')
   end
   
 else
-  warning('location of windows missing (cfg.loc or cfg.best_loc); generating random initial window placement')
+  if verbose
+    warning('location of windows missing (cfg.loc or cfg.best_loc); generating random initial window placement')
+  end
   if numWin
     [loc, numWin]=initloc(guard,winLen,dat,numWin);
   else
@@ -414,18 +426,6 @@ else
   else
     clustInit=1;
   end
-end
-
-if isfield(cfg,'verbose')
-  verbose=cfg.verbose;
-else
-  verbose=true;
-end
-
-if isfield(cfg,'dispPlot')
-  dispPlot=cfg.dispPlot;
-else
-  dispPlot=verbose;
 end
 
 
