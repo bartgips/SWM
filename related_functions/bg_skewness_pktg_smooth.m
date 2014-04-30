@@ -35,7 +35,7 @@ if isrow(x)
   x=x(:);
 end
 
-if nargin<2
+if nargin<2 || isempty(bias)
   bias=size(x,1)/2+.5;
 end
 
@@ -88,7 +88,7 @@ for n=1:size(x,2)
   xsmth=xint;
   while meanperiod<.8*periodEstn && ~breakloop
     
-    sigma=sigma+interpFac/10;
+    sigma=sigma+interpFac/2;
     tau=-4*sigma:4*sigma;
     h=exp(-tau'.^2/(2*sigma^2));
     h=h/sum(h);
@@ -102,13 +102,29 @@ for n=1:size(x,2)
     pktgIdx=[nan; sign(diff(xsmth(zeroCross)))];
     
     % only consider peaks and troughs that are near the global max/min
-    pdist=min(abs(bsxfun(@minus,xsmth(zeroCross),minmax(xsmth))),[],2);
-    rmsel=pdist>.15*diff(minmax(xsmth));
-    rmsel([1 end])=true;
+    tUs=interpFac*5:interpFac*10:numel(xsmth);
+    xUs=interp1(1:numel(xsmth),xsmth,tUs);
+    
+    dxUs=diff(xUs);
+    dxUs=dxUs(1:end-1);
+    zCUs=bg_find_zerocross(dxUs);
+    zCUs=zCUs(2:end-1);
     
     
-    pktgIdx=pktgIdx(~rmsel);
-    zeroCross=zeroCross(~rmsel);
+    
+    zCUs=tUs(zCUs);
+    rmsel=zeros(size(zeroCross));
+    for k=1:numel(zCUs)
+      rmsel=rmsel+(abs(zeroCross-zCUs(k))<(numel(tint)/numel(zCUs)*.1));
+    end
+    rmsel=logical(rmsel);  
+    
+    if sum(rmsel)<3 % if pruning was too rigorous, undo it
+      rmsel=true(size(rmsel));
+    end
+    
+    pktgIdx=pktgIdx(rmsel);
+    zeroCross=zeroCross(rmsel);
     
     meanperiod=(mean(diff(zeroCross(pktgIdx<0)))+mean(diff(zeroCross(pktgIdx>0))))/2;
     
@@ -134,7 +150,7 @@ for n=1:size(x,2)
   brd=zeroCross(mLenidx+[0:2]);
   brd=zeroCrossOrig(bg_findnearest(zeroCrossOrig,brd));
   
-  xOut(:,n)=xsmth;
+  xOut(:,n)=xint;
   
   slopeLen=diff(brd);
   slopeSign=sign(diff(xsmth(brd(1:2))));
