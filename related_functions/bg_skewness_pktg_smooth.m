@@ -121,11 +121,24 @@ for n=1:size(x,2)
     
     if sum(rmsel)<3 % if pruning was too rigorous, undo it
       rmsel=true(size(rmsel));
+    else    
+      pktgIdx=pktgIdx(rmsel);
+      zeroCross=zeroCross(rmsel);
+      rmsel=false(size(pktgIdx));
+      for k=1:numel(pktgIdx)-1
+        if pktgIdx(k)==pktgIdx(k+1) %two consecutive peaks or troughs
+          if pktgIdx(k)>0 %two peaks
+            [~,dum]=min(zeroCross([k k+1]));
+            rmsel(k-1+dum)=true;
+          else
+            [~,dum]=max(xsmth(zeroCross([k k+1])));
+            rmsel(k-1+dum)=true;
+          end
+        end
+      end
+      pktgIdx=pktgIdx(~rmsel);
+      zeroCross=zeroCross(~rmsel);
     end
-    
-    pktgIdx=pktgIdx(rmsel);
-    zeroCross=zeroCross(rmsel);
-    
     meanperiod=(mean(diff(zeroCross(pktgIdx<0)))+mean(diff(zeroCross(pktgIdx>0))))/2;
     
     
