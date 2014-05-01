@@ -564,9 +564,9 @@ end
 TchangeIterCount=0;
 TchangeToken=0;
 stepSz=floor(guard/2);
-TchangeCheck=1e3;
+TchangeCheck=5e3;
 iterPlot=1;
-rejcount=zeros(2,nPT);
+rejCount=zeros(3,nPT);
 clustnumel=nan(1,numClust);
 stopToken=0;
 
@@ -590,7 +590,7 @@ while iter<numIt &&  ~stopToken
   iter=iter+1;
   iterPlot=iterPlot+1;
   TchangeIterCount=TchangeIterCount+1;
-  rejcount(2,:)=rejcount(2,:)+1;
+  rejCount(2,:)=rejCount(2,:)+1;
   
   %determine to do cluster switch or window shift of sample
   pshift=.5;
@@ -707,7 +707,8 @@ while iter<numIt &&  ~stopToken
           cc(T)=cc(T)+1;
         end
       else
-        rejcount(1,T)=rejcount(1,T)+1;
+        rejCount(1,T)=rejCount(1,T)+1;
+        rejCount(3,T)=rejCount(3,T)+1;
       end
       
       
@@ -783,7 +784,8 @@ while iter<numIt &&  ~stopToken
           cc(T)=cc(T)+1;
         end
       else
-        rejcount(1,T)=rejcount(1,T)+1;
+        rejCount(1,T)=rejCount(1,T)+1;
+        rejCount(3,T)=rejCount(3,T)+1;
       end
     end
   end
@@ -793,17 +795,17 @@ while iter<numIt &&  ~stopToken
   % Every couple of iterations, try to lower the temperature (simulated
   % annealing)
   if TchangeIterCount >= TchangeCheck
-    if TchangeToken > 2 % after 2 unsuccesful Temperature changes decrease stepsize
-      if stepSz==2 % if stepsize is lowest possible value, stop the algorithm
+    if TchangeToken > 3 % after 3 unsuccesful Temperature changes insequence, stop the annealing process
+%       if stepSz==2 % if stepsize is lowest possible value, stop the algorithm
         stopToken=1;
-      end
-      stepSz=ceil(stepSz/2+.5);
-%       TchangeToken=0;
+%       end
+%       stepSz=ceil(stepSz/2+.5);
+%       TchangeToken=TchangeToken-1;
     else
       costDum=costTotal(:,iter-TchangeCheck+1:iter);
       [P,s,mu]=polyfit(1:TchangeCheck,costDum,1);
       ste = sqrt(diag(inv(s.R)*inv(s.R'))./s.normr.^2./s.df);
-      if P(1)+2*ste(1) >0
+      if P(1)+2*ste(1) >0 || rejCount(3,T)/TchangeCheck >.99 % insignificant decrease or less then 1% acceptance rate (to speed up the very end of the cooling)
         Tfac=Tfac/2;
         TchangeToken=TchangeToken+1;
       else
@@ -811,6 +813,7 @@ while iter<numIt &&  ~stopToken
       end
     end
     TchangeIterCount=0;
+    rejCount(3,T)=0;
   end
   
   DTfac=[D; Tfac; cc];
