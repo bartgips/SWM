@@ -179,10 +179,10 @@ meanShapeDum=nanmean(shapeMat)';
 t=1:tempLen;
 tint=linspace(1,tempLen,numel(meanShapeInt));
 stats.meanShape=spline(t',meanShapeDum,tint');
-cutout_dum=max(cutout_dum,1);
-cutout_dum=min(cutout_dum,numel(tint));
-stats.meanShape=stats.meanShape(cutout_dum(1):cutout_dum(2));
-stats.extrema=stats.extrema-cutout_dum(1)+1;
+% cutout_dum=max(cutout_dum,1);
+% cutout_dum=min(cutout_dum,numel(tint));
+% stats.meanShape=stats.meanShape(cutout_dum(1):cutout_dum(2));
+% stats.extrema=stats.extrema-cutout_dum(1)+1;
 
 function current_figure(h)
 set(0,'CurrentFigure',h)

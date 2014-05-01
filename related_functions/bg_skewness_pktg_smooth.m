@@ -115,7 +115,7 @@ for n=1:size(x,2)
     zCUs=tUs(zCUs);
     rmsel=zeros(size(zeroCross));
     for k=1:numel(zCUs)
-      rmsel=rmsel+(abs(zeroCross-zCUs(k))<(numel(tint)/numel(zCUs)*.1));
+      rmsel=rmsel+(abs(zeroCross-zCUs(k))<(periodEstn*.15));
     end
     rmsel=logical(rmsel);  
     
