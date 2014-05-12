@@ -316,7 +316,7 @@ dat(nanSel)=nan;
 if isfield(cfg,'guard')
   guard=cfg.guard;
 else
-  guard=round(winLen/1.5);
+  guard=round(winLen/2);
   cfg.guard=guard;
 end
 
