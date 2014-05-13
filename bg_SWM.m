@@ -55,8 +55,6 @@ function [cfg]=bg_SWM(cfg, dat)
 %             should be a logical the same size as the data. 0's mean no
 %             mask. I.e. 1's will indicate "forbidden" data. If the data
 %             contains NaN's, these will be automatically masked.
-%             Forbidden here means: window starts should be at least
-%             ".guard" separated from the mask.
 %             (note: can be sparse)
 %
 % Note: good values for .Tfac and .konstant depend on the scaling of your
@@ -130,10 +128,11 @@ function [cfg]=bg_SWM(cfg, dat)
 
 %% check validity of input fields
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
-  'cm';'costCoM';'costDistr';'debug';'dispPlot';'Fbs';'Fbp';'Fhp';'FhpFac';'Flp';'costFinal';...
-  'fname';'fs';'fullOutput';'guard';'costCoM_i';'konstant';'loc';'costMin';...
-  'nPT';'numClust';'numIt';'numIter';'numTemplates';'numWin';'ratio';'Tfac';...
-  'costTotal';'costTotal_end';'costTotal_undSamp';'varname';'verbose';'winLen';'winLenFac'};
+  'cm';'costCoM';'costCoM_i';'costDistr';'costMin';'costTotal';...
+  'costTotal_end';'costTotal_undSamp';'debug';'dispPlot';'Fbs';...
+  'Fbp';'Fhp';'FhpFac';'Flp';'costFinal';'fname';'fs';'fullOutput';'guard';...
+  'konstant';'loc';'mask';'nPT';'numClust';'numIt';'numIter';'numTemplates';...
+  'numWin';'ratio';'Tfac';'varname';'verbose';'winLen';'winLenFac'};
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
@@ -426,9 +425,10 @@ if isfield(cfg,'mask')
   mask=cfg.mask;
   numWinNew=0;
   for T=1:nPT
+    if T==1 || ~debug
     for n=1:size(mask,1)
       for k=1:numWin
-        selDum=loc{T}(n,k):min(loc{T}(n,k)+guard-1,size(dat,2));
+        selDum=loc{T}(n,k):min(loc{T}(n,k)+winLen-1,size(dat,2));
         if any(mask(n,selDum))
           loc{T}(n,k)=nan; % remove locs by making them into NaNs (to keep matrix dimensions of loc)
         end
@@ -436,12 +436,15 @@ if isfield(cfg,'mask')
     end
     loc{T}=sort(loc{T},2);
     if numWinNew<numWin
-      numWinNewDum=find(all(isnan(loc{T})),1);
+      numWinNewDum=find(mean(isnan(loc{T}))>.95,1)-1;
       if isempty(numWinNewDum)
         numWinNew=numWin;
       else
         numWinNew=max(numWinNewDum,numWinNew);
       end
+    end
+    else
+      loc{T}=loc{1};
     end
   end
   
@@ -680,7 +683,7 @@ while iter<numIt %&&  cc<cclim
   for T=1:nPT
     lidx=randval(numTemplates);
     
-    while maskFlag && isnan(loc{T}(lidx))
+    while maskFlag && isnan(loc{T}(lidx)) % do not try to move pruned locs
       lidx=randval(numTemplates);
     end
     clustidx=clustID(lidx,T);
@@ -708,7 +711,7 @@ while iter<numIt %&&  cc<cclim
         
         % also check for distance from mask
         if locChange && maskFlag
-          selDum=nLoc:min(nLoc+guard-1,size(dat,2));
+          selDum=nLoc:min(nLoc+winLen-1,size(dat,2));
           maskDum=sum(mask(trl,selDum))<1;
           locChange=maskDum;
         end
@@ -988,7 +991,9 @@ for n=1:numClust
   for k=1:tclust{n}.numTemplates
     trl=tclust{n}.trl(k);
     tidx=tclust{n}.tidx(k);
+    if ~isnan(tloc(trl,tidx))
     dum_s(k,:)=dat(trl,tloc(trl,tidx):tloc(trl,tidx)+winLen-1);
+    end
   end
   cfg.best_s(:,n)=nanmean(dum_s,1);
   cfg.best_z(:,n)=nanmean(bsxfun(@rdivide,bsxfun(@minus,dum_s,mean(dum_s,2)),std(dum_s,1,2)),1);
