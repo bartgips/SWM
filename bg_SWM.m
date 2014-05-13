@@ -50,6 +50,14 @@ function [cfg]=bg_SWM(cfg, dat)
 % .konstant:  Bolzmann constant used in determining whether two
 %             temperatures should be exchanged.
 %             (default = 1e3)
+% .mask:      A mask indicating "forbidden" parts of the data. I.e.
+%             immovable barriers where the sliding windows cannot go. Mask
+%             should be a logical the same size as the data. 0's mean no
+%             mask. I.e. 1's will indicate "forbidden" data. If the data
+%             contains NaN's, these will be automatically masked.
+%             Forbidden here means: window starts should be at least
+%             ".guard" separated from the mask.
+%             (note: can be sparse)
 %
 % Note: good values for .Tfac and .konstant depend on the scaling of your
 % data and the signal to noise level
@@ -154,7 +162,14 @@ end
 nanSel=sparse(isnan(dat));
 nanFlag=any(nanSel(:));
 if nanFlag
-  warning(['Data contains ' num2str(round(sum(nanSel(:))/numel(nanSel)*100)) '% NaNs. Correct convergence is not guaranteed.'])
+  warning(['Data contains ' num2str(round(sum(nanSel(:))/numel(nanSel)*100)) '% NaNs. Correct convergence is not guaranteed. Applying Mask..'])
+  if isfield(cfg,'mask')
+    mask=cfg.mask;
+    mask=logical(mask+nanSel);
+  else
+    mask=nanSel;
+  end
+  cfg.mask=mask;
 end
 
 %% determine winLen
@@ -405,6 +420,48 @@ else
   cfg.numWin=numWin;
 end
 
+% prune window locations if mask is present
+if isfield(cfg,'mask')
+  maskFlag=true;
+  mask=cfg.mask;
+  numWinNew=0;
+  for T=1:nPT
+    for n=1:size(mask,1)
+      for k=1:numWin
+        selDum=loc{T}(n,k):min(loc{T}(n,k)+guard-1,size(dat,2));
+        if any(mask(n,selDum))
+          loc{T}(n,k)=nan; % remove locs by making them into NaNs (to keep matrix dimensions of loc)
+        end
+      end
+    end
+    loc{T}=sort(loc{T},2);
+    if numWinNew<numWin
+      numWinNewDum=find(all(isnan(loc{T})),1);
+      if isempty(numWinNewDum)
+        numWinNew=numWin;
+      else
+        numWinNew=max(numWinNewDum,numWinNew);
+      end
+    end
+  end
+  
+  if numWinNew<numWin % check whether loc matrix can be made smaller
+    numWin=numWinNew;
+    cfg.numWin=numWin;
+    for T=1:nPT
+      loc{T}=loc{T}(:,1:numWin);
+    end
+  end
+  
+  if numWin<1
+    error('Mask inhibits placement of all windows')
+  end
+else
+  maskFlag=false;
+end
+
+  
+
 if isfield(cfg,'numClust')
   numClust=cfg.numClust;
 else
@@ -462,9 +519,12 @@ for T=1:nPT
   if T<2 || ~debug
     for n=1:numTemplates
       [trldum idxdum]=ind2sub([numTrl,numWin],n);
-      s_i=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+winLen-1);
-      z_i{T}(n,:)=(s_i(:)-nanmean(s_i(:)))/nanstd(s_i(:),1);
-      
+      if maskFlag && isnan(loc{T}(trldum,idxdum))
+        z_i{T}(n,:)=nan;
+      else
+        s_i=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+winLen-1);
+        z_i{T}(n,:)=(s_i(:)-nanmean(s_i(:)))/nanstd(s_i(:),1);
+      end
       msg=sprintf('\n Temperature %d/%d \n Template %d/%d', [T nPT n numTemplates]);
       if verbose
         fprintf([reverseStr, msg]);
@@ -620,6 +680,9 @@ while iter<numIt %&&  cc<cclim
   for T=1:nPT
     lidx=randval(numTemplates);
     
+    while maskFlag && isnan(loc{T}(lidx))
+      lidx=randval(numTemplates);
+    end
     clustidx=clustID(lidx,T);
     
     shift=rand<pshift;
@@ -643,6 +706,12 @@ while iter<numIt %&&  cc<cclim
           locChange= minDist >= guard;
         end
         
+        % also check for distance from mask
+        if locChange && maskFlag
+          selDum=nLoc:min(nLoc+guard-1,size(dat,2));
+          maskDum=sum(mask(trl,selDum))<1;
+          locChange=maskDum;
+        end
         loopcount=loopcount+1;
       end
       
