@@ -636,7 +636,7 @@ if dispPlot
   
   hfig=figure;
   set(hfig,'position',[100 100 1000 600])
-  set(gcf,'DefaultAxesColorOrder',colorOrder)
+  set(gcf,'DefaultAxesColorOrder',flipud(colorOrder))
   subplot(1,2,1)
   set(gca,'NextPlot','replacechildren')
   xlabel('iteration')
@@ -907,10 +907,10 @@ while iter<numIt %&&  cc<cclim
     current_figure(hfig)
     subplot(1,2,1)
     plotselIter=max(1,iter-5e3):iter;
-    plot(plotselIter,costTotal(:,plotselIter)','linewidth',2)
+    plot(plotselIter,fliplr(costTotal(:,plotselIter)'),'linewidth',2)
     xlim([plotselIter(1) plotselIter(1)+5e3-1])
     if plotLegend
-      hleg=legend(num2str(Tfac(:),'%1.2e'));
+      hleg=legend(num2str(flipud(Tfac(:)),'%1.2e'));
       set(get(hleg,'title'),'string','Tfac')
       plotLegend=0;
     end
@@ -1040,8 +1040,8 @@ end
 function [loc,numWin]=initloc(guard,winLen,data,numWin)
 % initialize window locations
 len=size(data);
-dum=1:2*guard:max((len(2)-winLen-guard),1);
 
+dum=guard:2*guard:max((len(2)-winLen-guard),1);
 if nargin<4
   numWin=numel(dum);
 else
@@ -1051,11 +1051,21 @@ else
 end
 
 loc=nan(size(data,1),numWin);
+
 for n=1:len(1)
-  dum2=dum+randval([guard, numel(dum)])-1;
-  dum2=min(dum2,len(2)-winLen+1);
-  sel=randperm(numel(dum2),numWin);
-  loc(n,:)=[dum2(sel)];
+  winCount=1;
+  winPos=nan(numWin,1);
+  winPos(1)=randperm(len(2)-winLen+1,1);
+  while winCount<numWin
+    nPos=randperm(len(2)-winLen+1,1);
+    %check validity
+    valid=min(abs(nPos-winPos))>guard;
+    if valid   
+      winCount=winCount+1;
+      winPos(winCount)=nPos;
+    end
+  end
+  loc(n,:)=sort(winPos);
 end
 
 function D_i=cost_i(z_s)
