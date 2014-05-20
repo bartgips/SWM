@@ -14,7 +14,7 @@ end
 % generating synthetic data to compare wavelet convolution to sliding
 % window matching
 
-fs=1e3;
+fs=5e3;
 dt=1/fs;
 if nargin<3
   tLen=100;
@@ -61,7 +61,7 @@ else
 end
 signalOrig=signal+noise;
 % highpass
-signal=ft_preproc_highpassfilter(signalOrig',fs,frq*.5);
+signal=ft_preproc_highpassfilter(signalOrig',fs,frq*.75,5);
 
 %% SWM
 
@@ -69,21 +69,28 @@ if verbose(1)
   disp('Sliding window matching...')
 end
 
-winLen=200;
-guard=150;
-[meanShape, meanStd]=deal(nan(winLen,2));
+winLen=fs/frq*2;
+guard=round(.75*winLen);
+[meanShapeZ, meanStdZ]=deal(nan(winLen,2));
 
 
 cfg=[];
 cfg.winLen=winLen;
 cfg.fs=fs;
 cfg.guard=guard;
-cfg.numIt=5e5;
+cfg.numIt=5e6;
 cfg.fullOutput=1;
-cfg.Tfac=1e-2;
+cfg.Tfac=logspace(-4,0,20);
+cfg.konstant=1e3;
 cfg.verbose=verbose(2);
-cfg.dispPlot=0;
-[cfgSWM]=bg_SWM_SA(cfg,signal);
+% cfg.Fhp=5;
+if numel(verbose)>2
+  cfg.dispPlot=verbose(3);
+else
+  cfg.dispPlot=0;
+end
+% [cfgSWM]=bg_SWM_SA(cfg,signal);
+[cfgSWM]=bg_SWM(cfg,signal);
 
 [z,s]=bg_swm_extract(cfgSWM,signal);
 
@@ -91,8 +98,11 @@ cfg.dispPlot=0;
 costdistr=sum(cfgSWM.costDistr{1},2);
 remsel=[costdistr>(mean(costdistr)+2*std(costdistr))]*0;
 
-meanShape(:,2)=nanmean(s(~remsel,:));
-meanStd(:,2)=nanstd(s(~remsel,:));
+meanShapeZ(:,2)=nanmean(z(~remsel,:));
+meanStdZ(:,2)=nanstd(z(~remsel,:));
+
+meanShapeS(:,2)=nanmean(s(~remsel,:));
+meanStdS(:,2)=nanstd(s(~remsel,:));
 
 
 %% fourier method
@@ -113,17 +123,26 @@ cfg2=bg_SWM_fourier(cfg,signal);
 
 [z,s]=bg_swm_extract(cfg2,signal);
 
-meanShape(:,1)=nanmean(s);
-meanStd(:,1)=nanstd(s);
+meanShapeZ(:,1)=nanmean(z);
+meanStdZ(:,1)=nanstd(z);
+
+meanShapeS(:,1)=nanmean(s);
+meanStdS(:,1)=nanstd(s);
 
 %% calculating skewness
-[skwIdx, brd, xout]=bg_skewness_pktg_smooth(meanShape);
+if verbose(1)
+  disp('Calculating skewness...')
+end
+
+[skwIdx, brd, xout]=bg_skewness_pktg_smooth(meanShapeZ);
 
 
 stats=[];
 % stats.SkwIdx=SkwIdx;
-stats.meanShape=meanShape;
-stats.meanStd=meanStd;
+stats.meanShapeZ=meanShapeZ;
+stats.meanStdZ=meanStdZ;
+stats.meanShape=meanShapeS;
+stats.meanStd=meanStdS;
 % stats.powspec=pow;
 % stats.f=ffrq;
 stats.signal=signal;

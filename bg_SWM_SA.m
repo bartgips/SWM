@@ -795,7 +795,7 @@ while iter<numIt &&  ~stopToken
   % Every couple of iterations, try to lower the temperature (simulated
   % annealing)
   if TchangeIterCount >= TchangeCheck
-    if TchangeToken > 3 % after 3 unsuccesful Temperature changes insequence, stop the annealing process
+    if TchangeToken > 5 % after 5 unsuccesful Temperature changes in sequence, stop the annealing process
 %       if stepSz==2 % if stepsize is lowest possible value, stop the algorithm
         stopToken=1;
 %       end
@@ -805,7 +805,7 @@ while iter<numIt &&  ~stopToken
       costDum=costTotal(:,iter-TchangeCheck+1:iter);
       [P,s,mu]=polyfit(1:TchangeCheck,costDum,1);
       ste = sqrt(diag(inv(s.R)*inv(s.R'))./s.normr.^2./s.df);
-      if P(1)+2*ste(1) >0 || rejCount(3,T)/TchangeCheck >.99 % insignificant decrease or less then 1% acceptance rate (to speed up the very end of the cooling)
+      if P(1)+2*ste(1) >0 %|| (rejCount(3,T)/TchangeCheck >.99 && TchangeToken >0) % insignificant decrease or less then 1% acceptance rate (to speed up the very end of the cooling)
         Tfac=Tfac/2;
         TchangeToken=TchangeToken+1;
       else

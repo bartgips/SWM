@@ -108,7 +108,7 @@ for n=1:size(x,2)
     dxUs=diff(xUs);
     dxUs=dxUs(1:end-1);
     zCUs=bg_find_zerocross(dxUs);
-    zCUs=zCUs(2:end-1);
+    zCUs=zCUs(2:end);
     
     
     
