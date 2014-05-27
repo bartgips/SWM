@@ -56,6 +56,10 @@ function [cfg]=bg_SWM(cfg, dat)
 %             mask. I.e. 1's will indicate "forbidden" data. If the data
 %             contains NaN's, these will be automatically masked.
 %             (note: can be sparse)
+% .outputFile:A filename to where the output should be written. If this is
+%             empty, the output will only be written to the workspace.
+%             (Like most Matlab functions do).
+%
 %
 % Note: good values for .Tfac and .konstant depend on the scaling of your
 % data and the signal to noise level
@@ -132,7 +136,7 @@ validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
   'costTotal_end';'costTotal_undSamp';'debug';'dispPlot';'Fbs';...
   'Fbp';'Fhp';'FhpFac';'Flp';'costFinal';'fname';'fs';'fullOutput';'guard';...
   'konstant';'loc';'mask';'nPT';'numClust';'numIt';'numIter';'numTemplates';...
-  'numWin';'ratio';'Tfac';'varname';'verbose';'winLen';'winLenFac'};
+  'numWin';'outputFile';'ratio';'Tfac';'varname';'verbose';'winLen';'winLenFac'};
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
@@ -169,6 +173,19 @@ if nanFlag
     mask=nanSel;
   end
   cfg.mask=mask;
+end
+
+if isfield(cfg,'outputFile')
+  outputFile=cfg.outputFile;
+  outputFlag=true;
+  % try writing to file
+  try
+    save(outputFile,'cfg');
+  catch
+    error(sprintf(['Unable to write to file:\n ' outputFile]));
+  end
+else
+  outputFlag=false;
 end
 
 %% determine winLen
@@ -426,23 +443,23 @@ if isfield(cfg,'mask')
   numWinNew=0;
   for T=1:nPT
     if T==1 || ~debug
-    for n=1:size(mask,1)
-      for k=1:numWin
-        selDum=loc{T}(n,k):min(loc{T}(n,k)+winLen-1,size(dat,2));
-        if any(mask(n,selDum))
-          loc{T}(n,k)=nan; % remove locs by making them into NaNs (to keep matrix dimensions of loc)
+      for n=1:size(mask,1)
+        for k=1:numWin
+          selDum=loc{T}(n,k):min(loc{T}(n,k)+winLen-1,size(dat,2));
+          if any(mask(n,selDum))
+            loc{T}(n,k)=nan; % remove locs by making them into NaNs (to keep matrix dimensions of loc)
+          end
         end
       end
-    end
-    loc{T}=sort(loc{T},2);
-    if numWinNew<numWin
-      numWinNewDum=find(mean(isnan(loc{T}))>.95,1)-1;
-      if isempty(numWinNewDum)
-        numWinNew=numWin;
-      else
-        numWinNew=max(numWinNewDum,numWinNew);
+      loc{T}=sort(loc{T},2);
+      if numWinNew<numWin
+        numWinNewDum=find(mean(isnan(loc{T}))>.95,1)-1;
+        if isempty(numWinNewDum)
+          numWinNew=numWin;
+        else
+          numWinNew=max(numWinNewDum,numWinNew);
+        end
       end
-    end
     else
       loc{T}=loc{1};
     end
@@ -463,7 +480,7 @@ else
   maskFlag=false;
 end
 
-  
+
 
 if isfield(cfg,'numClust')
   numClust=cfg.numClust;
@@ -647,6 +664,7 @@ end
 
 swapcount=0;
 Tchangecount=0;
+saveCount=0;
 iterPlot=1;
 rejcount=zeros(2,nPT);
 clustnumel=nan(1,numClust);
@@ -671,6 +689,7 @@ while iter<numIt %&&  cc<cclim
   iter=iter+1;
   iterPlot=iterPlot+1;
   swapcount=swapcount+1;
+  saveCount=saveCount+1;
   Tchangecount=Tchangecount+1;
   rejcount(2,:)=rejcount(2,:)+1;
   
@@ -878,7 +897,7 @@ while iter<numIt %&&  cc<cclim
   costTotal(:,iter)=D;
   
   % Every couple of iterations, try a state swap between two randomly
-  % chosen, but neighbouring temperatures
+  % chosen temperatures
   if nPT>1 && swapcount >= .5e3/(nPT);
     Tswap=randperm(nPT,2);
     %     Tswap=[Tswap Tswap+1];
@@ -927,103 +946,112 @@ while iter<numIt %&&  cc<cclim
     drawnow
   end
   
+  if saveCount >1e3 || iter==numIt  % every 1000 iterations, save file to disk
+    saveCount=0;
+    %% create final output structure
+    % append the cost to previous run if possible
+    try
+      cfg.costTotal=[cfg.costTotal; costTotal.'];
+    catch
+      cfg.costTotal=costTotal.';
+    end
+    cfg.costFinal=costTotal(:,end);
+    cfg.costMin=mincostTot;
+    % if needed, CoM cost
+    if ratio>0
+      cfg.costCoM=costCoM;
+      cfg.costCoM_i=costCoM_i;
+      cfg.cm=cm;
+    end
+    
+    % make best_loc, only if improvement has been found
+    try
+      cfg.best_loc=tloc;
+    catch
+      cfg.best_loc=nan;
+      tloc=loc{1};
+    end
+    try
+      cfg.best_clustID=tclustID;
+    catch
+      cfg.best_clustID=clustID(:,end);
+    end
+    
+    % make best clustering, only if improvement has been found
+    try
+      cfg.best_clust=tclust;
+    catch
+      cfg.best_clust=clust(:,end);
+    end
+    
+    % storing clusterings and locations for all temperatures, s.t. a second
+    % call to the function can resume where the first left off.
+    cfg.clust=clust;
+    cfg.loc=loc;
+    
+    if ~exist('tclust','var')
+      if numClust>1
+        warning('No improvement in clustering found.')
+      end
+      tclust=clust(:,nPT);
+    end
+    
+    % calculating the final shape (note this is after preprocessing, so this
+    % might yield different results than bg_swm_extract)
+    cfg.best_s=nan(winLen,numClust);
+    cfg.best_z=nan(winLen,numClust);
+    cfg.costDistr=cell(1,numClust);
+    for n=1:numClust
+      
+      dum_s=nan(tclust{n}.numTemplates,winLen);
+      for k=1:tclust{n}.numTemplates
+        trl=tclust{n}.trl(k);
+        tidx=tclust{n}.tidx(k);
+        if ~isnan(tloc(trl,tidx))
+          dum_s(k,:)=dat(trl,tloc(trl,tidx):tloc(trl,tidx)+winLen-1);
+        end
+      end
+      cfg.best_s(:,n)=nanmean(dum_s,1);
+      cfg.best_z(:,n)=nanmean(bsxfun(@rdivide,bsxfun(@minus,dum_s,mean(dum_s,2)),std(dum_s,1,2)),1);
+      
+      cfg.costDistr{n}=cost_i(z_score(dum_s));
+    end
+    
+    % sort in alphabetical order
+    cfg=orderfields(cfg);
+    
+    % cleanup
+    fieldNamesdum=fieldnames(cfg);
+    [~, fieldNameIdx]=sort(lower(fieldNamesdum));
+    cfg=orderfields(cfg,fieldNameIdx);
+    
+    if ~fullOutput
+      cleanFields={'cc','clust', 'loc', 'costFinal', 'costDistr', 'costCoM', 'cm','costCoM_i'};
+      for nn=1:numel(cleanFields)
+        try
+          cfg=rmfield(cfg,cleanFields{nn});
+        end
+      end
+      
+      % undersample costTotal
+      if max(size(cfg.costTotal))>2e3
+        cfg.costTotal_end=cfg.costTotal(end-2e3:end,:);
+        cfg.costTotal_undSamp=cfg.costTotal(1:1e2:end,:);
+        cfg=rmfield(cfg,'costTotal');
+      end
+    end
+    
+    if outputFlag
+      save(outputFile,'cfg');
+    end
+    
+  end
   
 end
 
 costTotal=costTotal(:,1:iter);
 
-%% create final output structure
-% append the cost to previous run if possible
-try
-  cfg.costTotal=[cfg.costTotal; costTotal.'];
-catch
-  cfg.costTotal=costTotal.';
-end
-cfg.costFinal=costTotal(:,end);
-cfg.costMin=mincostTot;
-% if needed, CoM cost
-if ratio>0
-  cfg.costCoM=costCoM;
-  cfg.costCoM_i=costCoM_i;
-  cfg.cm=cm;
-end
 
-% make best_loc, only if improvement has been found
-try
-  cfg.best_loc=tloc;
-catch
-  cfg.best_loc=nan;
-  tloc=loc{1};
-end
-try
-  cfg.best_clustID=tclustID;
-catch
-  cfg.best_clustID=clustID(:,end);
-end
-
-% make best clustering, only if improvement has been found
-try
-  cfg.best_clust=tclust;
-catch
-  cfg.best_clust=clust(:,end);
-end
-
-% storing clusterings and locations for all temperatures, s.t. a second
-% call to the function can resume where the first left off.
-cfg.clust=clust;
-cfg.loc=loc;
-
-if ~exist('tclust','var')
-  if numClust>1
-    warning('No improvement in clustering found.')
-  end
-  tclust=clust(:,nPT);
-end
-
-% calculating the final shape (note this is after preprocessing, so this
-% might yield different results than bg_swm_extract)
-cfg.best_s=nan(winLen,numClust);
-cfg.best_z=nan(winLen,numClust);
-cfg.costDistr=cell(1,numClust);
-for n=1:numClust
-  
-  dum_s=nan(tclust{n}.numTemplates,winLen);
-  for k=1:tclust{n}.numTemplates
-    trl=tclust{n}.trl(k);
-    tidx=tclust{n}.tidx(k);
-    if ~isnan(tloc(trl,tidx))
-    dum_s(k,:)=dat(trl,tloc(trl,tidx):tloc(trl,tidx)+winLen-1);
-    end
-  end
-  cfg.best_s(:,n)=nanmean(dum_s,1);
-  cfg.best_z(:,n)=nanmean(bsxfun(@rdivide,bsxfun(@minus,dum_s,mean(dum_s,2)),std(dum_s,1,2)),1);
-  
-  cfg.costDistr{n}=cost_i(z_score(dum_s));
-end
-
-% sort in alphabetical order
-cfg=orderfields(cfg);
-
-% cleanup
-fieldNamesdum=fieldnames(cfg);
-[~, fieldNameIdx]=sort(lower(fieldNamesdum));
-cfg=orderfields(cfg,fieldNameIdx);
-
-if ~fullOutput
-  cleanFields={'cc','clust', 'loc', 'costFinal', 'costDistr', 'costCoM', 'cm','costCoM_i'};
-  for nn=1:numel(cleanFields)
-    try
-      cfg=rmfield(cfg,cleanFields{nn});
-    end
-  end
-  
-  % undersample costTotal
-  if max(size(cfg.costTotal))>2e3
-    cfg.costTotal_end=cfg.costTotal(end-2e3:end,:);
-    cfg.costTotal_undSamp=cfg.costTotal(1:1e2:end,:);
-    cfg=rmfield(cfg,'costTotal');
-  end
-end
 
 return
 
@@ -1060,7 +1088,7 @@ for n=1:len(1)
     nPos=randperm(len(2)-winLen+1,1);
     %check validity
     valid=min(abs(nPos-winPos))>guard;
-    if valid   
+    if valid
       winCount=winCount+1;
       winPos(winCount)=nPos;
     end
