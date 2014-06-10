@@ -102,7 +102,8 @@ parabola=1+parabola.^2*.1;
 [~,bias]=min(bias.*parabola);
 bias=[bias bias+shapeLen/2+.5 bias+shapeLen];
 
-
+interpFac=1e2;
+amplitudes=nan(numIt,1);
 for iter=1:numIt
   
   sel=ceil(rand(sampsz,1)*numTemp);
@@ -115,12 +116,14 @@ for iter=1:numIt
   end
   %% calculating SkwIdx
   
-    [skwIdx(iter), brd(iter,:), meanShapeInt]=bg_skewness_pktg_smooth(meanShape,bias);
+    [skwIdx(iter), brd(iter,:), meanShapeInt]=bg_skewness_pktg_smooth(meanShape,bias,interpFac);
     
     if iter==1
       % make sure that bootstrapping will always focus on the same period
-      bias= brd(iter,:)/100;
+      bias= brd(iter,:)/interpFac;
     end
+    
+    amplitudes(iter)=mean(abs(diff(meanShapeInt(brd(iter,:)))))/2;
     
     if nargin >4 && fignum
       current_figure(fignum)
@@ -157,9 +160,9 @@ end
 
 %% period
 periods=diff(brd(:,[1 3]),1,2);
-stats.period.mu=nanmean(periods);
-stats.period.sem=sqrt(numIt/(numIt-1)*nanvar(periods,1));
-stats.period.distr=periods;
+stats.period.mu=nanmean(periods)/interpFac;
+stats.period.sem=sqrt(numIt/(numIt-1)*nanvar(periods,1))/interpFac;
+stats.period.distr=periods/interpFac;
 
 
 % perform t-test on difference from zero (only works if frac=1).
@@ -171,6 +174,11 @@ try
   stats.period.CI= quantile(periods,[alpha/2 1-alpha/2]);
 end
 
+%% amplitude
+stats.amplitude.mu=nanmean(amplitudes);
+stats.amplitude.sem=sqrt(numIt/(numIt-1)*nanvar(amplitudes,1));
+stats.amplitude.distr=amplitudes;
+
 %% mean extrema positions and shape
 stats.extrema=[quantile(brd(:,1),.5) quantile(brd(:,2),.5) quantile(brd(:,3),.5)];
 cutout_dum=stats.extrema([1 3]);
@@ -179,6 +187,7 @@ meanShapeDum=nanmean(shapeMat)';
 t=1:tempLen;
 tint=linspace(1,tempLen,numel(meanShapeInt));
 stats.meanShape=spline(t',meanShapeDum,tint');
+stats.sampSz=sampsz;
 % cutout_dum=max(cutout_dum,1);
 % cutout_dum=min(cutout_dum,numel(tint));
 % stats.meanShape=stats.meanShape(cutout_dum(1):cutout_dum(2));

@@ -393,12 +393,12 @@ else
   locSel=true(size(loc));
 end
 
-if isfield(cfg,'maxShift')
-  maxShift=cfg.maxShift;
-else
-  maxShift=round(.2*winLen);
-  cfg.maxShift=maxShift;
-end
+% if isfield(cfg,'maxShift')
+%   maxShift=cfg.maxShift;
+% else
+%   maxShift=round(.2*winLen);
+%   cfg.maxShift=maxShift;
+% end
 
 
 if isfield(cfg,'numClust')

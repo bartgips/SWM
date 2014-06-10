@@ -137,6 +137,8 @@ else
   s=nan(cfg.numTemplates,newLen);
 end
 
+
+
 if isfield(cfg,'loc_manual') % manual input of window locations.
   % loc is now a vector of complex values. Real part: trial index, Imag
   % part: time index.
@@ -153,6 +155,9 @@ else
   manualLoc=false;
 end
 
+if ~isfield(cfg,'numTemplates')
+  cfg.numTemplates=numel(loc);
+end
 
 z=s;
 
@@ -199,7 +204,7 @@ else
     end
   else
     for k=1:cfg.numTemplates
-      [trl, tidx]=ind2sub(size(loc(:,1:end-1)),k);
+      [trl, tidx]=ind2sub(size(loc(:,1:end)),k);
       if loc(trl,tidx)+winLen+addLen<=size(dat,2) && loc(trl,tidx)-addLen>0
         s(k,:)=dat(trl,loc(trl,tidx)-addLen:loc(trl,tidx)+winLen+addLen-1);
       elseif loc(trl,tidx)-addLen>0

@@ -446,7 +446,7 @@ if isfield(cfg,'mask')
       for n=1:size(mask,1)
         for k=1:numWin
           selDum=loc{T}(n,k):min(loc{T}(n,k)+winLen-1,size(dat,2));
-          if any(mask(n,selDum))
+          if ~isnan(loc{T}(n,k)) && any(mask(n,selDum))
             loc{T}(n,k)=nan; % remove locs by making them into NaNs (to keep matrix dimensions of loc)
           end
         end
@@ -950,11 +950,11 @@ while iter<numIt %&&  cc<cclim
     saveCount=0;
     %% create final output structure
     % append the cost to previous run if possible
-    try
-      cfg.costTotal=[cfg.costTotal; costTotal.'];
-    catch
+%     try
+%       cfg.costTotal=[cfg.costTotal; costTotal.'];
+%     catch
       cfg.costTotal=costTotal.';
-    end
+%     end
     cfg.costFinal=costTotal(:,end);
     cfg.costMin=mincostTot;
     % if needed, CoM cost
@@ -1026,7 +1026,7 @@ while iter<numIt %&&  cc<cclim
     cfg=orderfields(cfg,fieldNameIdx);
     
     if ~fullOutput
-      cleanFields={'cc','clust', 'loc', 'costFinal', 'costDistr', 'costCoM', 'cm','costCoM_i'};
+      cleanFields={'cc','clust', 'costFinal', 'costDistr', 'costCoM', 'cm','costCoM_i'};
       for nn=1:numel(cleanFields)
         try
           cfg=rmfield(cfg,cleanFields{nn});
