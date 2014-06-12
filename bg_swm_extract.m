@@ -204,13 +204,13 @@ else
     end
   else
     for k=1:cfg.numTemplates
-      [trl, tidx]=ind2sub(size(loc(:,1:end)),k);
+      [trl, tidx]=ind2sub(size(loc),k);
       if loc(trl,tidx)+winLen+addLen<=size(dat,2) && loc(trl,tidx)-addLen>0
         s(k,:)=dat(trl,loc(trl,tidx)-addLen:loc(trl,tidx)+winLen+addLen-1);
-      elseif loc(trl,tidx)-addLen>0
-        num=size(dat,2)-loc(trl,tidx)+1;
-        s(k,1:num)=dat(trl,loc(trl,tidx):end);
-      elseif loc(trl,tidx)+addLen+winLen<=size(dat,2)
+      elseif loc(trl,tidx)-addLen>0 % start of window fits
+        num=size(dat,2)-loc(trl,tidx)+1+addLen;
+        s(k,1:num)=dat(trl,loc(trl,tidx)-addLen:end);
+      elseif loc(trl,tidx)+addLen+winLen<=size(dat,2) %end of window fits
         num=1-(loc(trl,tidx)-addLen);
         s(k,num+1:end)=dat(trl,1:loc(trl,tidx)+winLen+addLen-1);
         %     else
