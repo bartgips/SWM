@@ -102,18 +102,18 @@ if isfield(cfg,'maxlocs') %only extract highest power
   end
   cfg.best_loc=cfg.best_loc-floor(winLen/2);
   cfg.best_loc=[cfg.best_loc ones(numtrials,1)*size(dat,2)];
-  cfg.bestclust{1}.numtemplates=numtrials*maxlocs;
+  cfg.bestclust{1}.numTemplates=numtrials*maxlocs;
   
 else
   cfg.best_loc=loc;
   cfg.best_loc=cfg.best_loc-floor(winLen/2);
-  cfg.bestclust{1}.numtemplates=numel(loc)-size(loc,1);
+  cfg.bestclust{1}.numTemplates=numel(loc)-size(loc,1);
 end
 
 cfg.bestclust{1}.trl=repmat([1:numtrials]',1,size(cfg.best_loc,2)-1);
 cfg.bestclust{1}.tidx=repmat(1:size(cfg.best_loc,2)-1,size(cfg.best_loc,1),1);
-cfg.numtemplates=numtrials*(size(cfg.best_loc,2)-1);
-cfg.bestclust{1}.linidx=1:cfg.numtemplates;
+cfg.numTemplates=numtrials*(size(cfg.best_loc,2)-1);
+cfg.bestclust{1}.linidx=1:cfg.numTemplates;
 
 
     

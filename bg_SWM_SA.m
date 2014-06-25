@@ -390,7 +390,8 @@ end
 if isfield(cfg,'locSel')
   locSel=logical(cfg.locSel);
 else
-  locSel=true(size(loc));
+%   locSel=true(size(loc));
+  locSel=~isnan(loc);
 end
 
 % if isfield(cfg,'maxShift')
