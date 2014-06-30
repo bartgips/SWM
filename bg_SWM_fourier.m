@@ -44,8 +44,8 @@ else
   cfg.type=type;
 end
 
-if isfield(cfg,'numTemplates')
-  cfg.maxlocs=cfg.numTemplates;
+if isfield(cfg,'numWin')
+  cfg.maxlocs=cfg.numWin;
 end
 
 
@@ -62,6 +62,21 @@ switch type
   case 'butt'
     filtdat=ft_preproc_bandpassfilter(dat,fs,[-bw bw]+fbp);
     analytic=hilbert(filtdat.').';
+  case 'brick'
+    if numel(fbp)~=2
+      error('cfg.fbp should contain 2 frequencies when using brickwall filter')
+    end
+    % brickwall complex BP filters
+    L=size(dat,2);
+    df=1/L*fs;
+    if mod(L,2)
+      f=[0:df:fs/2 -fs/2:df:0-df]';
+    else
+      f=[0:df:fs/2-df -fs/2:df:0-df]';
+    end    
+    filtFT=zeros(numel(f),1);
+    filtFT(f>=fbp(1) & f<=fbp(2))=1;
+    analytic=ifft(bsxfun(@times,fft(dat.'),filtFT)).';
 end
 
 
