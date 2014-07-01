@@ -152,9 +152,11 @@ if nargin<2
   dum=load(cfg.fname, cfg.varname);
   eval(['dat=dum.' cfg.varname ';'])
   clear dum
+  fInputFlag=false;
 else
   cfg.fname='function input';
   cfg.varname='N/A';
+  fInputFlag=true;
 end
 
 
@@ -1043,6 +1045,9 @@ while iter<numIt %&&  cc<cclim
     
     if outputFlag
       save(outputFile,'cfg');
+      if fInputFlag
+        save(outputFile,'dat','-append');
+      end
     end
     
   end

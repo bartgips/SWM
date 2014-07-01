@@ -101,22 +101,22 @@ for n=1:size(x,2)
     
     pktgIdx=[nan; sign(diff(xsmth(zeroCross)))];
     
-    % only consider peaks and troughs that are near the global max/min
-    tUs=interpFac*5:interpFac*10:numel(xsmth);
-    xUs=interp1(1:numel(xsmth),xsmth,tUs);
-    
-    dxUs=diff(xUs);
-    dxUs=dxUs(1:end-1);
-    zCUs=bg_find_zerocross(dxUs);
-    zCUs=zCUs(2:end);
-    
-    
-    
-    zCUs=tUs(zCUs);
+%     % only consider peaks and troughs that are near the global max/min
+%     tUs=interpFac*5:interpFac*10:numel(xsmth);
+%     xUs=interp1(1:numel(xsmth),xsmth,tUs);
+%     
+%     dxUs=diff(xUs);
+%     dxUs=dxUs(1:end-1);
+%     zCUs=bg_find_zerocross(dxUs);
+%     zCUs=zCUs(2:end);
+%     
+%     
+%     
+%     zCUs=tUs(zCUs);
     rmsel=zeros(size(zeroCross));
-    for k=1:numel(zCUs)
-      rmsel=rmsel+(abs(zeroCross-zCUs(k))<(periodEstn*.15));
-    end
+%     for k=1:numel(zCUs)
+%       rmsel=rmsel+(abs(zeroCross-zCUs(k))<(periodEstn*.15));
+%     end
     rmsel=logical(rmsel);  
     
     if sum(rmsel)<3 % if pruning was too rigorous, undo it
