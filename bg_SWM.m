@@ -458,8 +458,6 @@ if isfield(cfg,'mask')
         numWinNewDum=find(mean(isnan(loc{T}))>.95,1)-1;
         if isempty(numWinNewDum)
           numWinNew=numWin;
-        elseif numWinNewdum==0 && sum(~isnan(loc{T}(:,1)))>2
-          numWinNew=1;
         else
           numWinNew=max(numWinNewDum,numWinNew);
         end
