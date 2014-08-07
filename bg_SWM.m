@@ -931,7 +931,7 @@ while iter<numIt %&&  cc<cclim
     plot(plotselIter,fliplr(costTotal(:,plotselIter)'),'linewidth',2)
     xlim([plotselIter(1) plotselIter(1)+5e3-1])
     if plotLegend
-      hleg=legend(num2str(flipud(Tfac(:)),'%1.2e'));
+      hleg=legend(num2str(flipud(Tfac(:)),'%1.2e'),'location','southwest');
       set(get(hleg,'title'),'string','Tfac')
       plotLegend=0;
     end
