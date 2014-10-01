@@ -2,23 +2,24 @@ cd /home/mrphys/bargip/GIT/SWM/figs/stats
 
 %%
 skew=1;
-tLen=1000;
+tLen=10;
 verbose=0;
 
 
 snr=[.01:.01:.1 .2:.1:1];
+% snr=[.2 .5 .8];
 % stat=cell(numel(snr),1);
 batchid='Synt_Bat';
 numIt=20;
 
 jobid=cell(numIt,1);
 for iter=1:numIt
-  jobid{iter}=qsubfeval('bg_sawtooth_shapefind_snr_bat',snr,skew,tLen,1,'memreq',1024^3,'timreq',60^2*20,'batchid',batchid);
+  jobid{iter}=qsubfeval('bg_sawtooth_shapefind_snr_bat',snr,skew,tLen,1,'memreq',1024^1,'timreq',60^2*1,'batchid',batchid);
 % [skw(iter,n,:)]=bg_sawtooth_shapefind_snr(snr(n),skew,tLen,verbose);
 
 end
 
-save jobid_1skew_PT_5e3fs jobid snr
+save jobid_1skew_1e3fs3 jobid snr
 
 %%
 load jobid

@@ -1,5 +1,5 @@
-function [stats]=bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, fignum)
-% stats = bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, fignum)
+function [stats]=bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, numExtr, fignum)
+% stats = bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, numExtr, fignum)
 %
 % Uses interpolation together with detection of extrema to calculate skweness index based on T_up/T_down ratio.
 % Like other bootstrap functions estimates confidence interval of skewness of noisy shapes contained in
@@ -7,7 +7,7 @@ function [stats]=bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, fignum
 %
 % This method is useful when the individual shapes are very
 % noisy, and this noise hinders you in determining the true skewness of
-% every shape individually. Averaging over a larg enough (frac) sub sample,
+% every shape individually. Averaging over a large enough (frac) sub sample,
 % will average out most of the noise.
 %
 % Note: this method assumes a unimodal distribution of skewness.
@@ -33,6 +33,9 @@ function [stats]=bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, fignum
 %           counter) is written to the terminal/ command window.
 %           (default: verbose = 1)
 %
+% numExtr:  Number of extrema detected to estimate the skewness.
+%           (default = 3; should be 3 or greater)
+% 
 % fignum:   (optional) Figure number/handle to which to plot every sample;
 %           smoothed together with the 3 detected extrema.
 %           If left empty or set to zero, no figure is plotted.
@@ -73,10 +76,14 @@ if nargin<4
 end
 reverseStr=[];
 
-if nargin >4 && fignum
+if nargin >5 && fignum
   figure(fignum)
   clf
   %   set(fignum,'visible','off')
+end
+
+if nargin <5
+  numExtr=3;
 end
 
 
@@ -84,7 +91,7 @@ end
 [numTemp, tempLen]=size(shapeMat);
 
 skwIdx=nan(numIt,1);
-brd=nan(numIt,3);
+brd=nan(numIt,numExtr);
 sampsz=round(frac*numTemp);
 
 % find bias for bg_skewness_pktg_smooth; i.e. find period with least
@@ -116,22 +123,25 @@ for iter=1:numIt
   end
   %% calculating SkwIdx
   
-    [skwIdx(iter), brd(iter,:), meanShapeInt]=bg_skewness_pktg_smooth(meanShape,bias,interpFac);
+    [skwIdx(iter), brd(iter,:), meanShapeInt]=bg_skewness_pktg_harsh(meanShape,bias,interpFac,numExtr);
     
     if iter==1
       % make sure that bootstrapping will always focus on the same period
       bias= brd(iter,:)/interpFac;
     end
     
-    amplitudes(iter)=mean(abs(diff(meanShapeInt(brd(iter,:)))))/2;
+    brddum=brd(iter,:);
     
-    if nargin >4 && fignum
+    amplitudes(iter)=mean(abs(diff(meanShapeInt(brddum(~isnan(brddum))))))/2;
+    
+    if nargin >5 && fignum
+      tInt=[1:numel(meanShapeInt)]/interpFac;
       current_figure(fignum)
-      plot(meanShapeInt)
-      vline(brd(iter,:))
+      plot(tInt,meanShapeInt)
+      vline(brd(iter,:)/interpFac)
       title(sprintf(['Iteration %d/%d\n'], [iter numIt]))
-      xlim([1 numel(meanShapeInt)])
       title(['Iteration ' num2str(iter) '/' num2str(numIt) '; Skewness: ' num2str(skwIdx(iter),'%1.3f')])
+      xlim([1 numel(meanShapeInt)]/interpFac)
       drawnow
     end
   

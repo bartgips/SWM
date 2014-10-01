@@ -3,7 +3,7 @@ function [skw, meanShape]=bg_sawtooth_shapefind_snr_bat(snr,skew,tLen,numIt,verb
 
 skw=nan(numel(snr), numel(skew), numel(tLen), numIt, 2);
 
-meanShape=nan(numel(snr), numel(skew), numel(tLen), numIt, 1000, 2);
+meanShape=nan(numel(snr), numel(skew), numel(tLen), numIt, 200, 2);
 
 if nargin<5
   verbose=false;

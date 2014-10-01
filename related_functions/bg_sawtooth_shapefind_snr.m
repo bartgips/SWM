@@ -1,5 +1,5 @@
-function [skwIdx, stats]=bg_sawtooth_shapefind_snr(snr,skew,tLen,verbose)
-% [skwIdx, stats]=bg_sawtooth_shapefind_snr(snr,skew,tLen,verbose)
+function [skwIdx, stats]=bg_sawtooth_shapefind_snr(snr,skew,tLen,verbose,cfg)
+% [skwIdx, stats]=bg_sawtooth_shapefind_snr(snr,skew,tLen,verbose,cfg)
 %
 % Bart Gips; April 2014
 
@@ -14,7 +14,7 @@ end
 % generating synthetic data to compare wavelet convolution to sliding
 % window matching
 
-fs=5e3;
+fs=1e3;
 dt=1/fs;
 if nargin<3
   tLen=100;
@@ -70,15 +70,16 @@ if verbose(1)
 end
 
 winLen=fs/frq*2;
-guard=round(.75*winLen);
+% guard=round(.75*winLen);
 [meanShapeZ, meanStdZ]=deal(nan(winLen,2));
 
-
-cfg=[];
+if nargin<5
+  cfg=[];
+end
 cfg.winLen=winLen;
 cfg.fs=fs;
-cfg.guard=guard;
-cfg.numIt=5e6;
+% cfg.guard=guard;
+cfg.numIt=2e4;
 cfg.fullOutput=1;
 cfg.Tfac=logspace(-4,0,20);
 cfg.konstant=1e3;
@@ -134,7 +135,7 @@ if verbose(1)
   disp('Calculating skewness...')
 end
 
-[skwIdx, brd, xout]=bg_skewness_pktg_smooth(meanShapeZ);
+[skwIdx, brd, xout]=bg_skewness_pktg_harsh(meanShapeZ);
 
 
 stats=[];

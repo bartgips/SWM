@@ -1,5 +1,5 @@
-function [skwIdx, brdOut, xOut]=bg_skewness_pktg_smooth(x, bias, interpFac, numExtr)
-% [skwIdx, brdOut, xOut]=bg_skewness_pktg_smooth(x, bias, interpFac, numExtr)
+function [skwIdx, brdOut, xOut]=bg_skewness_pktg_harsh(x, bias, interpFac, numExtr)
+% [skwIdx, brdOut, xOut]=bg_skewness_pktg_harsh(x, bias, interpFac, numExtr)
 % Calculates skewness by finding the extrema of a shape. This shape is
 % first interpolated (cubic spline) with factor "interpFac".
 % The extrema are found by detecting zero-crossings in the derivative.
@@ -85,16 +85,11 @@ for n=1:size(x,2)
   tint=linspace(1,L,ceil(interpFac*L));
   xint=spline(t',x(:,n),tint');
   periodEstn=periodEst(n)*interpFac;
-  dx=diff(xint);
-  
-  zeroCross=bg_find_zerocross(dx);
-  zeroCrossOrig=zeroCross;
-  pktgIdx=sign(diff(xint(zeroCross)));
-  pktgIdx=[pktgIdx(1:end-1)];
-  
+  [zeroCross, pktgIdx]=harshReduction(xint);
+    
   sigma=0;
   breakloop=false;
-  meanperiod=zeroCross(2:end-1);
+  meanperiod=zeroCross;
   meanperiod=(mean(diff(meanperiod(pktgIdx<0)))+mean(diff(meanperiod(pktgIdx>0))))/2;
     
   xsmth=xint;
@@ -106,51 +101,11 @@ for n=1:size(x,2)
     h=h/sum(h);
     
     xsmth=conv2(xint,h,'same');
-    dxsmth=diff(xsmth);
-%     dxsmth=dxsmth(1:end-1,:);
     
-    zeroCross=bg_find_zerocross(dxsmth);
+    [zeroCross, pktgIdx]=harshReduction(xsmth);
     
-    pktgIdx=[nan; sign(diff(xsmth(zeroCross)))];
-    
-%     % only consider peaks and troughs that are near the global max/min
-%     tUs=interpFac*5:interpFac*10:numel(xsmth);
-%     xUs=interp1(1:numel(xsmth),xsmth,tUs);
-%     
-%     dxUs=diff(xUs);
-%     dxUs=dxUs(1:end-1);
-%     zCUs=bg_find_zerocross(dxUs);
-%     zCUs=zCUs(2:end);
-%     
-%     
-%     
-%     zCUs=tUs(zCUs);
-    rmsel=zeros(size(zeroCross));
-%     for k=1:numel(zCUs)
-%       rmsel=rmsel+(abs(zeroCross-zCUs(k))<(periodEstn*.15));
-%     end
-    rmsel=logical(rmsel);  
-    
-    if sum(rmsel)<3 % if pruning was too rigorous, undo it
-      rmsel=true(size(rmsel));
-    else    
-      pktgIdx=pktgIdx(rmsel);
-      zeroCross=zeroCross(rmsel);
-      rmsel=false(size(pktgIdx));
-      for k=1:numel(pktgIdx)-1
-        if pktgIdx(k)==pktgIdx(k+1) %two consecutive peaks or troughs
-          if pktgIdx(k)>0 %two peaks
-            [~,dum]=min(zeroCross([k k+1]));
-            rmsel(k-1+dum)=true;
-          else
-            [~,dum]=max(xsmth(zeroCross([k k+1])));
-            rmsel(k-1+dum)=true;
-          end
-        end
-      end
-      pktgIdx=pktgIdx(~rmsel);
-      zeroCross=zeroCross(~rmsel);
-    end
+   
+
     meanperiod=(mean(diff(zeroCross(pktgIdx<0)))+mean(diff(zeroCross(pktgIdx>0))))/2;
     
     
@@ -166,7 +121,7 @@ for n=1:size(x,2)
   end
   
   % find the period that's closest to the bias
-  zeroCross=zeroCross(2:end-1);
+%   zeroCross=zeroCross(2:end-1);
   brd=nan(numExtr,1);
   if numel(zeroCross)<numExtr
     numExtr=numel(zeroCross);
@@ -205,5 +160,92 @@ for n=1:size(x,2)
   
   brdOut(n,:)=brd;
 end
+end
 
+function [zeroCross, pktgIdx]=harshReduction(xint)
+dx=diff(xint);
+  
+  zeroCross=bg_find_zerocross(dx);
+  zeroCrossOrig=zeroCross;
+  pktgIdx=sign(diff(xint(zeroCross)));
+  pktgIdx=[pktgIdx(1:end-1)];
+  zeroCross=zeroCross(2:end-1);
+  
+  % firstly, remove local extrema that are obvious 
+  % (peaks that are lower than median trough and vice versa)
+  badSel=1;
+  while sum(badSel)>0
+    pkQ=median(xint(zeroCross(pktgIdx==1)));
+    tgQ=median(xint(zeroCross(pktgIdx==-1)));
+    badPk=(xint(zeroCross)<tgQ) & pktgIdx==1;
+    badTg=xint(zeroCross)>pkQ & pktgIdx==-1;
+    badSel=badPk | badTg;
+    zeroCross=zeroCross(~badSel);
+    pktgIdx=pktgIdx(~badSel);
+  end
+  
+  % Next pass, more agressive, use .85 and .15 quantile instead of median
+  badSel=1;
+  while sum(badSel)>0
+    pkQ=quantile(xint(zeroCross(pktgIdx==1)),0);
+    tgQ=quantile(xint(zeroCross(pktgIdx==-1)),1);
+    badPk=(xint(zeroCross)<tgQ) & pktgIdx==1;
+    badTg=xint(zeroCross)>pkQ & pktgIdx==-1;
+    badSel=badPk | badTg;
+    zeroCross=zeroCross(~badSel);
+    pktgIdx=pktgIdx(~badSel);
+  end
+  
+  % now remove consecutive troughs or peaks
+  breakLoop=false;
+  pktgIdx=[pktgIdx; nan]; % add NaN as a marker for the end of the vector
+  zeroCross=[zeroCross nan];
+  while ~breakLoop
+    firstTg=find(pktgIdx==-1,1);
+    firstPk=find(pktgIdx==1,1);
+    firstNan=find(isnan(pktgIdx),1);
+    
+%     figure(1); clf; plot(tint,xint); hold on; plot(tint(zeroCross(pktgIdx==1)),xint(zeroCross(pktgIdx==1)),'or'); plot(tint(zeroCross(pktgIdx==-1)),xint(zeroCross(pktgIdx==-1)),'xk')
+%     vline(tint(zeroCross([firstTg firstPk])))
+%     pause
+    
+    selVec=false(size(pktgIdx));
+    if firstNan<firstTg && firstNan<firstPk % loop is done
+      zeroCross=zeroCross(~isnan(pktgIdx));
+      pktgIdx=pktgIdx(~isnan(pktgIdx));
+      breakLoop=true;
+    elseif firstNan<firstPk % loop almost done, final bit is all troughs
+      selVec(firstTg:firstNan-1)=true;
+      Seq=zeroCross(selVec);
+      Seqpktg=pktgIdx(selVec);
+      [~,mIdx]=min(xint(zeroCross(selVec)));
+      zeroCross=[zeroCross(~selVec) Seq(mIdx)];
+      pktgIdx=[pktgIdx(~selVec); Seqpktg(mIdx)];
+    elseif firstNan<firstTg % loop almost done, final bit is all peaks
+      selVec(firstPk:firstNan-1)=true;
+      Seq=zeroCross(selVec);
+      Seqpktg=pktgIdx(selVec);
+      [~,mIdx]=max(xint(zeroCross(selVec)));
+      zeroCross=[zeroCross(~selVec) Seq(mIdx)];
+      pktgIdx=[pktgIdx(~selVec); Seqpktg(mIdx)];
+    elseif (firstPk-firstTg)>1 %first extrema are troughs
+      selVec(firstTg:firstPk-1)=true;
+      Seq=zeroCross(selVec);
+      Seqpktg=pktgIdx(selVec);
+      [~,mIdx]=min(xint(zeroCross(selVec)));
+      zeroCross=[zeroCross(~selVec) Seq(mIdx)];
+      pktgIdx=[pktgIdx(~selVec); Seqpktg(mIdx)];
+    elseif (firstTg-firstPk)>1 %first extrema are peaks
+      selVec(firstPk:firstTg-1)=true;
+      Seq=zeroCross(selVec);
+      Seqpktg=pktgIdx(selVec);
+      [~,mIdx]=max(xint(zeroCross(selVec)));
+      zeroCross=[zeroCross(~selVec) Seq(mIdx)];
+      pktgIdx=[pktgIdx(~selVec); Seqpktg(mIdx)];
+    elseif abs(firstPk-firstTg)==1 % a single extremum: skip it
+      zeroCross=zeroCross([2:end 1]);
+      pktgIdx=pktgIdx([2:end 1]);
+    end
+  end
+end
 
