@@ -928,10 +928,16 @@ while iter<numIt %&&  cc<cclim
     current_figure(hfig)
     subplot(1,2,1)
     plotselIter=max(1,iter-5e3):iter;
-    plot(plotselIter,fliplr(costTotal(:,plotselIter)'),'linewidth',2)
+    h=plot(plotselIter,fliplr(costTotal(:,plotselIter)'),'linewidth',2);
     xlim([plotselIter(1) plotselIter(1)+5e3-1])
     if plotLegend
+      if numel(Tfac)>5
+        TfacSel=unique(round(linspace(1,numel(Tfac),5)));
+        TfacDum=Tfac(:);
+        hleg=legend(h(TfacSel),num2str(flipud(TfacDum(TfacSel)),'%1.2e'),'location','southwest');
+      else
       hleg=legend(num2str(flipud(Tfac(:)),'%1.2e'),'location','southwest');
+      end
       set(get(hleg,'title'),'string','Tfac')
       plotLegend=0;
     end
