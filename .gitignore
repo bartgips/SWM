@@ -4,6 +4,11 @@
 version*
 compiled/
 *gitignore
-figs
+*.eps
+*.pdf
+*.png
+*.mat
+/figs/stats
+Thumbs.db
 
 path_add.txt
