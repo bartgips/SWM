@@ -190,9 +190,7 @@ stats.amplitude.sem=sqrt(numIt/(numIt-1)*nanvar(amplitudes,1));
 stats.amplitude.distr=amplitudes;
 
 %% mean extrema positions and shape
-stats.extrema=[quantile(brd(:,1),.5) quantile(brd(:,2),.5) quantile(brd(:,3),.5)];
-cutout_dum=stats.extrema([1 3]);
-cutout_dum=round(cutout_dum+[-1 1]*.25*diff(cutout_dum));
+stats.extrema=[quantile(brd,.5) ];
 meanShapeDum=nanmean(shapeMat)';
 t=1:tempLen;
 tint=linspace(1,tempLen,numel(meanShapeInt));
@@ -208,15 +206,18 @@ set(0,'CurrentFigure',h)
 
 
 function Y=quantile(x, p)
-% only takes vectors
-x=x(~isnan(x));
-x=sort(x,1);
-L=size(x,1);
-Y=nan(numel(p),1);
-for n=1:numel(p)
-  idx=p(n)*(L-.5)+.5;
-  remainder=rem(idx,1);
-  Y(n)=(1-remainder)*x(floor(idx))+(remainder)*x(floor(idx)+1);
+
+Y=nan(numel(p),size(x,2));
+for k=1:size(x,2);
+  xdum=x(:,k);
+  xdum=xdum(~isnan(xdum));
+  xdum=sort(xdum,1);
+  L=size(xdum,1);
+  for n=1:numel(p)
+    idx=p(n)*(L-.5)+.5;
+    remainder=rem(idx,1);
+    Y(n,k)=(1-remainder)*xdum(floor(idx))+(remainder)*xdum(floor(idx)+1);
+  end
 end
 
 
