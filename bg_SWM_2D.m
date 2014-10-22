@@ -660,6 +660,8 @@ if dispPlot
   ylabel('Cost')
   plotLegend=1;
   subplot(1,2,2)
+  xlabel('Sliding dimension')
+  ylabel('Concatenated other dimensions')
 end
 
 swapcount=0;
@@ -930,6 +932,8 @@ while iter<numIt %&&  cc<cclim
     imagesc(imDum,maxabs(imDum));
     colorbar
     title('mean shape (lowest temperature)')
+    xlabel('Sliding dimension')
+    ylabel('Concatenated other dimensions')
     drawnow
   end
   
@@ -979,25 +983,27 @@ while iter<numIt %&&  cc<cclim
     
     % calculating the final shape (note this is after preprocessing, so this
     % might yield different results than bg_swm_extract)
-    cfg.best_s=nan(winLen,numClust);
-    cfg.best_z=nan(winLen,numClust);
+    cfg.best_s=nan([numClust,winLen,sz(3:end)]);
+    cfg.best_z=cfg.best_s;
     cfg.costDistr=cell(1,numClust);
     for n=1:numClust
       
-      dum_s=nan(tclust{n}.numTemplates,winLen);
+      dum_s=nan([tclust{n}.numTemplates,winLen, sz(3:end)]);
       for k=1:tclust{n}.numTemplates
         trl=tclust{n}.trl(k);
         tidx=tclust{n}.tidx(k);
         if ~isnan(tloc(trl,tidx))
-          dum_s(k,:)=dat(trl,tloc(trl,tidx):tloc(trl,tidx)+winLen-1);
+          dum_s(k,:)=reshape(dat(trl,tloc(trl,tidx):tloc(trl,tidx)+winLen-1,:),[],1);
         end
       end
-      cfg.best_s(:,n)=nanmean(dum_s,1);
-      cfg.best_z(:,n)=nanmean(bsxfun(@rdivide,bsxfun(@minus,dum_s,mean(dum_s,2)),std(dum_s,1,2)),1);
+      cfg.best_s(n,:)=reshape(nanmean(dum_s,1),[],1);
+      cfg.best_z(n,:)=nanmean(bsxfun(@rdivide,bsxfun(@minus,reshape(dum_s,size(dum_s,1),[]),mean(reshape(dum_s,size(dum_s,1),[]),2)),std(reshape(dum_s,size(dum_s,1),[]),1,2)),1);
       
       cfg.costDistr{n}=cost_i(z_score(dum_s));
     end
-    
+    % make clusters the last dimension
+    cfg.best_s=permute(cfg.best_s,[2:ndims(cfg.best_s),1]);
+    cfg.best_z=permute(cfg.best_z,[2:ndims(cfg.best_z),1]);
     % sort in alphabetical order
     cfg=orderfields(cfg);
     
