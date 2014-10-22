@@ -161,9 +161,13 @@ else
   fInputFlag=true;
 end
 
-
 if iscolumn(dat);
   dat=dat.';
+end
+
+sz=size(dat);
+if numel(sz)<3
+  sz(3)=1;
 end
 
 nanSel=(isnan(dat));
@@ -252,7 +256,9 @@ if isfield(cfg,'Fbp')
     Fbp=Fbp';
   end
   for band=1:size(Fbp,1)
-    dat=ft_preproc_bandpassfilter(dat, fs, Fbp(band,:),[],filttype);
+    for n=1:prod(sz(3:end))
+    dat(:,:,n)=ft_preproc_bandpassfilter(dat(:,:,n), fs, Fbp(band,:),[],filttype);
+    end
   end
 end
 
@@ -267,7 +273,9 @@ if isfield(cfg,'Fbs')
     Fbs=Fbs';
   end
   for band=1:size(Fbs,1)
-    dat=ft_preproc_bandstopfilter(dat, fs, Fbs(band,:),[],filttype);
+    for n=1:prod(sz(3:end))
+    dat(:,:,n)=ft_preproc_bandstopfilter(dat(:,:,n), fs, Fbs(band,:),[],filttype);
+    end
   end
 end
 
@@ -280,7 +288,9 @@ if isfield(cfg,'Fhp')
   Fhp=cfg.Fhp;
   Fhp=Fhp(:);
   for freq=1:size(Fhp,1)
-    dat=ft_preproc_highpassfilter(dat, fs, Fhp(freq),[],filttype);
+    for n=1:prod(sz(3:end))
+    dat(:,:,n)=ft_preproc_highpassfilter(dat(:,:,n), fs, Fhp(freq),[],filttype);
+    end
   end
 end
 
@@ -320,7 +330,9 @@ if isfield(cfg,'FhpFac')
   Fhp=Fhp(:);
   cfg.Fhp=Fhp;
   for freq=1:size(Fhp,1)
-    dat=ft_preproc_highpassfilter(dat, fs, Fhp(freq),[],filttype);
+    for n=1:prod(sz(3:end))
+    dat(:,:,n)=ft_preproc_highpassfilter(dat(:,:,n), fs, Fhp(freq),[],filttype);
+    end
   end
 end
 
@@ -334,7 +346,9 @@ if isfield(cfg,'Flp')
   Flp=cfg.Flp;
   Flp=Flp(:);
   for freq=1:size(Flp,1)
-    dat=ft_preproc_lowpassfilter(dat, fs, Flp(freq),[],filttype);
+    for n=1:prod(sz(3:end))
+    dat(:,:,n)=ft_preproc_lowpassfilter(dat(:,:,n), fs, Flp(freq),[],filttype);
+    end
   end
 end
 
@@ -514,11 +528,6 @@ else
 end
 
 %% Initialization
-
-sz=size(dat);
-if numel(sz)<3
-  sz(3)=1;
-end
 
 % find the number of sample vectors/templates
 numTrl=size(dat,1);
