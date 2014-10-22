@@ -26,6 +26,11 @@ if iscolumn(dat)
   dat=dat.';
 end
 
+sz=size(dat);
+if numel(sz)<3
+  sz(3)=1;
+end
+
 
 %% preprocessing (filtering)
 nanSel=isnan(dat);
@@ -55,7 +60,9 @@ if isfield(cfg,'Fbp')
     Fbp=Fbp';
   end
   for band=1:size(Fbp,1)
-    dat=ft_preproc_bandpassfilter(dat, fs, Fbp(band,:),[],filttype);
+    for n=1:prod(sz(3:end))
+    dat(:,:,n)=ft_preproc_bandpassfilter(dat(:,:,n), fs, Fbp(band,:),[],filttype);
+    end
   end
 end
 
@@ -70,7 +77,9 @@ if isfield(cfg,'Fbs')
     Fbs=Fbs';
   end
   for band=1:size(Fbs,1)
-    dat=ft_preproc_bandstopfilter(dat, fs, Fbs(band,:),[],filttype);
+    for n=1:prod(sz(3:end))
+    dat(:,:,n)=ft_preproc_bandstopfilter(dat(:,:,n), fs, Fbs(band,:),[],filttype);
+    end
   end
 end
 
@@ -83,7 +92,9 @@ if isfield(cfg,'Fhp')
   Fhp=cfg.Fhp;
   Fhp=Fhp(:);
   for freq=1:size(Fhp,1)
-    dat=ft_preproc_highpassfilter(dat, fs, Fhp(freq),[],filttype);
+    for n=1:prod(sz(3:end))
+    dat(:,:,n)=ft_preproc_highpassfilter(dat(:,:,n), fs, Fhp(freq),[],filttype);
+    end
   end
 end
 
@@ -96,7 +107,9 @@ if isfield(cfg,'Flp')
   Flp=cfg.Flp;
   Flp=Flp(:);
   for freq=1:size(Flp,1)
-    dat=ft_preproc_lowpassfilter(dat, fs, Flp(freq),[],filttype);
+    for n=1:prod(sz(3:end))
+    dat(:,:,n)=ft_preproc_lowpassfilter(dat(:,:,n), fs, Flp(freq),[],filttype);
+    end
   end
 end
 
@@ -130,11 +143,11 @@ if isfield(cfg,'clust') && numel(cfg.clust)>1
   clustering=true;
   s=cell(1,cfg.numclust);
   for n=1:numel(s)
-    s{n}=nan(cfg.clust{n}.numTemplates,newLen);
+    s{n}=nan([cfg.clust{n}.numTemplates,newLen,sz(3:end)]);
   end
 else
   clustering=false;
-  s=nan(cfg.numTemplates,newLen);
+  s=nan([cfg.numTemplates,newLen,sz(3:end)]);
 end
 
 
@@ -149,7 +162,7 @@ if isfield(cfg,'loc_manual') % manual input of window locations.
   % part: time index.
   manualLoc=true;
   clustering=false;
-  s=nan(numel(loc),newLen);
+  s=nan([numel(loc),newLen,sz(3:end)]);
   
 else
   manualLoc=false;
@@ -169,23 +182,23 @@ if manualLoc
     trl=real(loc(k));
     tidx=imag(loc(k));
     if tidx+winLen+addLen<=size(dat,2) && tidx-addLen>0
-      s(k,:)=dat(trl,tidx-addLen:tidx+winLen+addLen-1);
+      s(k,:)=reshape(dat(trl,tidx-addLen:tidx+winLen+addLen-1,:),[],1);
     elseif tidx-addLen>0
       num=size(dat,2)-tidx+1;
-      s(k,1:num)=dat(trl,tidx:end);
+      s(k,1:num,:)=dat(trl,tidx:end,:);
     elseif tidx+addLen+winLen<=size(dat,2)
       num=1-(tidx-addLen);
-      s(k,num+1:end)=dat(trl,1:tidx+winLen+addLen-1);
+      s(k,num+1:end,:)=dat(trl,1:tidx+winLen+addLen-1,:);
       %     else
       %       strt=tidx+addLen;
       %       finish=size(dat,2)+tidx+addLen;
       %       s(k,strt+1:finish)=dat(trl,1:end);
     end
+    z(k,:)=(s(k,:)-nanmean(s(k,:)))/nanstd(s(k,:));
   end
-  z=zscore(s,1,2);
   
 else
-  if clustering
+  if clustering %% DOES NOT WORK YET FOR DATA WITH MORE THAN 1 DIM
     for n=1:numel(s)
       for k=1:cfg.clust{n}.numTemplates
         trl=cfg.clust{n}.trl(k);
@@ -206,20 +219,20 @@ else
     for k=1:cfg.numTemplates
       [trl, tidx]=ind2sub(size(loc),k);
       if loc(trl,tidx)+winLen+addLen<=size(dat,2) && loc(trl,tidx)-addLen>0
-        s(k,:)=dat(trl,loc(trl,tidx)-addLen:loc(trl,tidx)+winLen+addLen-1);
+        s(k,:)=reshape(dat(trl,loc(trl,tidx)-addLen:loc(trl,tidx)+winLen+addLen-1,:),[],1);
       elseif loc(trl,tidx)-addLen>0 % start of window fits
         num=size(dat,2)-loc(trl,tidx)+1+addLen;
-        s(k,1:num)=dat(trl,loc(trl,tidx)-addLen:end);
+        s(k,1:num,:)=dat(trl,loc(trl,tidx)-addLen:end,:);
       elseif loc(trl,tidx)+addLen+winLen<=size(dat,2) %end of window fits
         num=1-(loc(trl,tidx)-addLen);
-        s(k,num+1:end)=dat(trl,1:loc(trl,tidx)+winLen+addLen-1);
+        s(k,num+1:end,:)=dat(trl,1:loc(trl,tidx)+winLen+addLen-1,:);
         %     else
         %       strt=loc(trl,tidx)+addLen;
         %       finish=size(dat,2)+loc(trl,tidx)+addLen;
         %       s(k,strt+1:finish)=dat(trl,1:end);
       end
+      z(k,:)=(s(k,:)-nanmean(s(k,:)))/nanstd(s(k,:));
     end
-    z=zscore(s,1,2);
   end
 end
 
