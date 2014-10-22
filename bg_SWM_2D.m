@@ -616,7 +616,7 @@ if verbose
   fprintf('\nInitializing cost matrices...')
 end
 D=zeros(1,nPT);
-N=winLen;
+N=winLen*prod(sz(3:end));
 for T=1:nPT
   D(T)=0;
   for n=1:numClust
@@ -758,10 +758,10 @@ while iter<numIt %&&  cc<cclim
           z_sumdum=clust{clustidx,T}.z_isum-pZ+nZ;
           noNanCountdum=clust{clustidx,T}.noNanCount-isnan(z_i{T}(lidx,:))+isnan(z_dum);
           nanFac=N_c./noNanCountdum;
-          ncost=(N_c^2/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*(N_c-1));
+          ncost=(N_c^2/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         else
           z_sumdum=clust{clustidx,T}.z_isum-z_i{T}(lidx,:)+z_dum(:)';
-          ncost=(N_c^2/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*(N_c-1));
+          ncost=(N_c^2/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         end
         
         
@@ -832,7 +832,7 @@ while iter<numIt %&&  cc<cclim
         z2dum=[z_sumdum(1,:)*z_sumdum(1,:).' z_sumdum(2,:)*z_sumdum(2,:).'];
       end
       
-      ncost=((N_c.^2./(N_c-1))-z2dum./(winLen*(N_c-1)));
+      ncost=((N_c.^2./(N_c-1))-z2dum./(winLen*prod(sz(3:end))*(N_c-1)));
       cVal=pcost-sum(ncost);
       
       %accept/reject cluster change
