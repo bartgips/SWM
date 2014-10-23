@@ -1,4 +1,4 @@
-function [cfg]=bg_SWM(cfg, dat)
+function [cfg]=bg_SWM_2D(cfg, dat)
 % [cfg]=bg_SWM(cfg, dat)
 %
 % Sliding Window Matching algorithm for detecting consistent, reocurring
@@ -10,9 +10,11 @@ function [cfg]=bg_SWM(cfg, dat)
 % cfg:  a structure that contains all parameters
 % dat:  optional the data on which you want to apply the algorithm
 %       (not neccesary if cfg.fname and cfg.varname are present)
-%       Dimensions: M x N
+%       Dimensions: M x N x [Other dims]
 %       M: trials
-%       N: time points
+%       N: time points, dimension along which the windows slide
+%       Other dims: other dimensions of the data, the windows do not slide
+%       along this dimension, but they are taken into account for matching
 %
 % Fields in cfg that are required:
 % .winLen:    the length of the sliding windows in timestamp units.
@@ -132,11 +134,11 @@ function [cfg]=bg_SWM(cfg, dat)
 
 %% check validity of input fields
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
-  'cm';'costCoM';'costCoM_i';'costDistr';'costMin';'costTotal';...
+  'costDistr';'costMin';'costTotal';...
   'costTotal_end';'costTotal_undSamp';'debug';'dispPlot';'Fbs';...
   'Fbp';'Fhp';'FhpFac';'Flp';'costFinal';'fname';'fs';'fullOutput';'guard';...
   'konstant';'loc';'mask';'nPT';'numClust';'numIt';'numIter';'numTemplates';...
-  'numWin';'outputFile';'ratio';'Tfac';'varname';'verbose';'winLen';'winLenFac'};
+  'numWin';'outputFile';'Tfac';'varname';'verbose';'winLen';'winLenFac'};
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
@@ -159,12 +161,19 @@ else
   fInputFlag=true;
 end
 
-
 if iscolumn(dat);
   dat=dat.';
 end
 
-nanSel=sparse(isnan(dat));
+sz=size(dat);
+if numel(sz)<3
+  sz(3)=1;
+  multiDim=0;
+else
+  multiDim=1;
+end
+
+nanSel=(isnan(dat));
 nanFlag=any(nanSel(:));
 if nanFlag
   warning(['Data contains ' num2str(round(sum(nanSel(:))/numel(nanSel)*100)) '% NaNs. Correct convergence is not guaranteed. Applying Mask..'])
@@ -250,7 +259,9 @@ if isfield(cfg,'Fbp')
     Fbp=Fbp';
   end
   for band=1:size(Fbp,1)
-    dat=ft_preproc_bandpassfilter(dat, fs, Fbp(band,:),[],filttype);
+    for n=1:prod(sz(3:end))
+      dat(:,:,n)=ft_preproc_bandpassfilter(dat(:,:,n), fs, Fbp(band,:),[],filttype);
+    end
   end
 end
 
@@ -265,7 +276,9 @@ if isfield(cfg,'Fbs')
     Fbs=Fbs';
   end
   for band=1:size(Fbs,1)
-    dat=ft_preproc_bandstopfilter(dat, fs, Fbs(band,:),[],filttype);
+    for n=1:prod(sz(3:end))
+      dat(:,:,n)=ft_preproc_bandstopfilter(dat(:,:,n), fs, Fbs(band,:),[],filttype);
+    end
   end
 end
 
@@ -278,7 +291,9 @@ if isfield(cfg,'Fhp')
   Fhp=cfg.Fhp;
   Fhp=Fhp(:);
   for freq=1:size(Fhp,1)
-    dat=ft_preproc_highpassfilter(dat, fs, Fhp(freq),[],filttype);
+    for n=1:prod(sz(3:end))
+      dat(:,:,n)=ft_preproc_highpassfilter(dat(:,:,n), fs, Fhp(freq),[],filttype);
+    end
   end
 end
 
@@ -318,7 +333,9 @@ if isfield(cfg,'FhpFac')
   Fhp=Fhp(:);
   cfg.Fhp=Fhp;
   for freq=1:size(Fhp,1)
-    dat=ft_preproc_highpassfilter(dat, fs, Fhp(freq),[],filttype);
+    for n=1:prod(sz(3:end))
+      dat(:,:,n)=ft_preproc_highpassfilter(dat(:,:,n), fs, Fhp(freq),[],filttype);
+    end
   end
 end
 
@@ -332,7 +349,9 @@ if isfield(cfg,'Flp')
   Flp=cfg.Flp;
   Flp=Flp(:);
   for freq=1:size(Flp,1)
-    dat=ft_preproc_lowpassfilter(dat, fs, Flp(freq),[],filttype);
+    for n=1:prod(sz(3:end))
+      dat(:,:,n)=ft_preproc_lowpassfilter(dat(:,:,n), fs, Flp(freq),[],filttype);
+    end
   end
 end
 
@@ -361,13 +380,6 @@ else
   cfg.numIt=numIt;
 end
 
-% add CoM weighting (not recommended; biases towards symmetry)
-if isfield(cfg,'ratio')
-  ratio=cfg.ratio;
-else
-  ratio=0;
-  cfg.ratio=ratio;
-end
 
 if isfield(cfg,'konstant')
   konstant=cfg.konstant;
@@ -527,11 +539,8 @@ cfg.numTemplates=numTemplates;
 
 % construct sample vectors
 z_i=cell(1,nPT);
-z_i(:)={nan(numTemplates,winLen)};
-costCoM_i=nan(numTemplates,nPT); %CoM cost of individual windows
+z_i(:)={nan([numTemplates,winLen,sz(3:end)])};
 
-cm=costCoM_i;
-costCoM=nan(1,nPT);
 if verbose
   fprintf('\nInitializing sliding windows and evaluating cost function...')
 end
@@ -544,8 +553,9 @@ for T=1:nPT
       if maskFlag && isnan(loc{T}(trldum,idxdum))
         z_i{T}(n,:)=nan;
       else
-        s_i=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+winLen-1);
-        z_i{T}(n,:)=(s_i(:)-nanmean(s_i(:)))/nanstd(s_i(:),1);
+        s_i=zeros([winLen,sz(3:end)]);
+        s_i(:)=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+winLen-1,:);
+        z_i{T}(n,:)=reshape((s_i-nanmean(s_i(:)))./nanstd(s_i(:),1),[],1);
       end
       msg=sprintf('\n Temperature %d/%d \n Template %d/%d', [T nPT n numTemplates]);
       if verbose
@@ -553,20 +563,11 @@ for T=1:nPT
       end
       reverseStr = repmat(sprintf('\b'), 1, length(msg));
       
-      if ratio>0
-        [costCoM_i(n,T) cm(n,T)]=com(z_i{T}(n,:),ratio);
-      else
-        costCoM_i(n,T)=0;
-        cm(n,T)=nan;
-      end
       
     end
   else
     z_i{T}=z_i{1};
-    costCoM_i(:,T)=costCoM_i(:,1);
-    cm(:,T)=cm(n,1);
   end
-  costCoM(T)=sum(costCoM_i(:,T));
 end
 
 
@@ -618,9 +619,9 @@ if verbose
   fprintf('\nInitializing cost matrices...')
 end
 D=zeros(1,nPT);
-N=winLen;
+N=winLen*prod(sz(3:end));
 for T=1:nPT
-  D(T)=costCoM(T);
+  D(T)=0;
   for n=1:numClust
     N_c=clust{n,T}.numTemplates;
     z_isum=nansum(z_i{T}(clust{n,T}.linIdx,:),1);
@@ -662,6 +663,7 @@ if dispPlot
   ylabel('Cost')
   plotLegend=1;
   subplot(1,2,2)
+  xlabel('Sliding dimension')
 end
 
 swapcount=0;
@@ -746,10 +748,9 @@ while iter<numIt %&&  cc<cclim
         N_c=clust{clustidx,T}.numTemplates;
         %       pcost=D(T);
         pcost=clust{clustidx,T}.tempCost;
-        pcomcost=costCoM_i(lidx,T);
-        
-        s_dum=dat(trl,nLoc:nLoc+winLen-1);
-        z_dum=(s_dum-nanmean(s_dum))/nanstd(s_dum,1);
+        s_dum=zeros(winLen,sz(3:end));
+        s_dum(:)=dat(trl,nLoc:nLoc+winLen-1,:);
+        z_dum=(s_dum-nanmean(s_dum(:)))/nanstd(s_dum(:),1);
         
         if nanFlag
           pZ=z_i{T}(lidx,:);
@@ -759,23 +760,16 @@ while iter<numIt %&&  cc<cclim
           z_sumdum=clust{clustidx,T}.z_isum-pZ+nZ;
           noNanCountdum=clust{clustidx,T}.noNanCount-isnan(z_i{T}(lidx,:))+isnan(z_dum);
           nanFac=N_c./noNanCountdum;
-          ncost=(N_c^2/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*(N_c-1));
+          ncost=(N_c^2/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         else
-          z_sumdum=clust{clustidx,T}.z_isum-z_i{T}(lidx,:)+z_dum;
-          ncost=(N_c^2/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*(N_c-1));
+          z_sumdum=clust{clustidx,T}.z_isum-z_i{T}(lidx,:)+z_dum(:)';
+          ncost=(N_c^2/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         end
         
         
         
-        
-        if ratio>0
-          [ncomcost ncm]=com(z_dum,ratio);
-        else
-          ncomcost=0;
-          ncm=nan;
-        end
         % change in cost function
-        cVal=(pcost-ncost+pcomcost-ncomcost);
+        cVal=(pcost-ncost);
       else %could not find a valid window shift -> "reject", i.e. keep everything as-is
         cVal=-inf;
       end
@@ -792,6 +786,7 @@ while iter<numIt %&&  cc<cclim
       end
       
       if accept
+        cc(T)=0;
         %update everything with new values
         loc{T}(trl,tidx)=nLoc;
         clust{clustidx,T}.z_isum=z_sumdum;
@@ -800,22 +795,17 @@ while iter<numIt %&&  cc<cclim
         end
         clust{clustidx,T}.tempCost=ncost;
         D(T)=D(T)-cVal;
-        z_i{T}(lidx,:)=z_dum;
-        costCoM_i(lidx,T)=ncomcost;
-        costCoM(T)=costCoM(T)+ncomcost-pcomcost;
-        cm(lidx,T)=ncm;
-        
+        z_i{T}(lidx,:)=z_dum(:);
         if costMin(T)>D(T)
           if mincostTot>D(T);
             mincostTot=D(T);
             tloc=loc{T};
           end
           costMin(T)=D(T);
-          cc(T)=0;
-        else
-          cc(T)=cc(T)+1;
+          
         end
       else
+        cc(T)=cc(T)+1;
         rejcount(1,T)=rejcount(1,T)+1;
       end
       
@@ -844,7 +834,7 @@ while iter<numIt %&&  cc<cclim
         z2dum=[z_sumdum(1,:)*z_sumdum(1,:).' z_sumdum(2,:)*z_sumdum(2,:).'];
       end
       
-      ncost=((N_c.^2./(N_c-1))-z2dum./(winLen*(N_c-1)));
+      ncost=((N_c.^2./(N_c-1))-z2dum./(winLen*prod(sz(3:end))*(N_c-1)));
       cVal=pcost-sum(ncost);
       
       %accept/reject cluster change
@@ -859,6 +849,7 @@ while iter<numIt %&&  cc<cclim
       end
       
       if accept
+        cc(T)=0;
         %update everything
         clustID(lidx,T)=nclustidx;
         clust{clustidx,T}.linIdx=clust{clustidx,T}.linIdx(~relidx);
@@ -886,11 +877,9 @@ while iter<numIt %&&  cc<cclim
             end
           end
           costMin(T)=D(T);
-          cc(T)=0;
-        else
-          cc(T)=cc(T)+1;
         end
       else
+        cc(T)=cc(T)+1;
         rejcount(1,T)=rejcount(1,T)+1;
       end
     end
@@ -906,8 +895,6 @@ while iter<numIt %&&  cc<cclim
     pswap=exp(1/konstant*diff(1./Tfac(Tswap))*diff(D(Tswap)));
     if rand < pswap;
       D(fliplr(Tswap))=D(Tswap);
-      costCoM(fliplr(Tswap))=costCoM((Tswap));
-      costCoM_i(:,fliplr(Tswap))=costCoM_i(:,(Tswap));
       loc(fliplr(Tswap))=loc(Tswap);
       z_i(fliplr(Tswap))=z_i(Tswap);
       clust(:,fliplr(Tswap))=clust(:,(Tswap));
@@ -917,7 +904,11 @@ while iter<numIt %&&  cc<cclim
   end
   
   DTfac=[D; Tfac; cc];
-  msg=sprintf([' # iterations: %d/%d\n\n cost =           Tfac =    LastAccept =\n' repmat('  %E     %1.4E    %8d\n',1, nPT) '\n Best clustering:\n ' repmat('%6d  ',1,numClust) '\n'], [iter numIt DTfac(:)' clustnumel]);
+  if numClust>1
+    msg=sprintf([' # iterations: %d/%d\n\n cost =           Tfac =    LastAccept =\n' repmat('  %E     %1.4E    %8d\n',1, nPT) '\n Best clustering:\n ' repmat('%6d  ',1,numClust) '\n'], [iter numIt DTfac(:)' clustnumel]);
+  else
+    msg=sprintf([' # iterations: %d/%d\n\n cost =           Tfac =    LastAccept =\n' repmat('  %E     %1.4E    %8d\n',1, nPT) '\n'], [iter numIt DTfac(:)']);
+  end
   if verbose
     fprintf([reverseStr, msg]);
   end
@@ -936,21 +927,33 @@ while iter<numIt %&&  cc<cclim
         TfacDum=Tfac(:);
         hleg=legend(h(TfacSel),num2str(flipud(TfacDum(TfacSel)),'%1.2e'),'location','southwest');
       else
-      hleg=legend(num2str(flipud(Tfac(:)),'%1.2e'),'location','southwest');
+        hleg=legend(num2str(flipud(Tfac(:)),'%1.2e'),'location','southwest');
       end
       set(get(hleg,'title'),'string','Tfac')
       plotLegend=0;
     end
     subplot(1,2,2)
-    
-    for TT=1:numel(plotselT)
-      plot(nanmean(z_i{plotselT(TT)}),'color',colorOrderShape(TT,:),'linewidth',2)
-      hold on
+    if multiDim
+      imDum=reshape(squeeze(nanmean(z_i{1})),winLen,[])';
+      imagesc(imDum,maxabs(imDum));
+      h=colorbar;
+      set(get(h,'ylabel'),'string','z-score')
+      title('mean shape (lowest temperature)')
+      ylabel('Concatenated other dimensions')
+    else
+      for TT=1:numel(plotselT)
+        plot(nanmean(z_i{plotselT(TT)}),'color',colorOrderShape(TT,:),'linewidth',2)
+        hold on
+      end
+      hold off
+      title('mean shape (lowest temperatures)')
+      hleg2=legend(num2str(Tfac(plotselT)','%1.2e'));
+      set(get(hleg2,'title'),'string','Tfac')
+      title('mean shape (lowest temperatures)')
+      ylabel('z-score')
     end
-    hold off
-    title('mean shape (lowest temperatures)')
-    hleg2=legend(num2str(Tfac(plotselT)','%1.2e'));
-    set(get(hleg2,'title'),'string','Tfac')
+    xlabel('Sliding dimension')
+    
     drawnow
   end
   
@@ -958,19 +961,13 @@ while iter<numIt %&&  cc<cclim
     saveCount=0;
     %% create final output structure
     % append the cost to previous run if possible
-%     try
-%       cfg.costTotal=[cfg.costTotal; costTotal.'];
-%     catch
-      cfg.costTotal=costTotal.';
-%     end
+    %     try
+    %       cfg.costTotal=[cfg.costTotal; costTotal.'];
+    %     catch
+    cfg.costTotal=costTotal.';
+    %     end
     cfg.costFinal=costTotal(:,end);
     cfg.costMin=mincostTot;
-    % if needed, CoM cost
-    if ratio>0
-      cfg.costCoM=costCoM;
-      cfg.costCoM_i=costCoM_i;
-      cfg.cm=cm;
-    end
     
     % make best_loc, only if improvement has been found
     try
@@ -1006,25 +1003,27 @@ while iter<numIt %&&  cc<cclim
     
     % calculating the final shape (note this is after preprocessing, so this
     % might yield different results than bg_swm_extract)
-    cfg.best_s=nan(winLen,numClust);
-    cfg.best_z=nan(winLen,numClust);
+    cfg.best_s=nan([numClust,winLen,sz(3:end)]);
+    cfg.best_z=cfg.best_s;
     cfg.costDistr=cell(1,numClust);
     for n=1:numClust
       
-      dum_s=nan(tclust{n}.numTemplates,winLen);
+      dum_s=nan([tclust{n}.numTemplates,winLen, sz(3:end)]);
       for k=1:tclust{n}.numTemplates
         trl=tclust{n}.trl(k);
         tidx=tclust{n}.tidx(k);
         if ~isnan(tloc(trl,tidx))
-          dum_s(k,:)=dat(trl,tloc(trl,tidx):tloc(trl,tidx)+winLen-1);
+          dum_s(k,:)=reshape(dat(trl,tloc(trl,tidx):tloc(trl,tidx)+winLen-1,:),[],1);
         end
       end
-      cfg.best_s(:,n)=nanmean(dum_s,1);
-      cfg.best_z(:,n)=nanmean(bsxfun(@rdivide,bsxfun(@minus,dum_s,mean(dum_s,2)),std(dum_s,1,2)),1);
+      cfg.best_s(n,:)=reshape(nanmean(dum_s,1),[],1);
+      cfg.best_z(n,:)=nanmean(bsxfun(@rdivide,bsxfun(@minus,reshape(dum_s,size(dum_s,1),[]),mean(reshape(dum_s,size(dum_s,1),[]),2)),std(reshape(dum_s,size(dum_s,1),[]),1,2)),1);
       
       cfg.costDistr{n}=cost_i(z_score(dum_s));
     end
-    
+    % make clusters the last dimension
+    cfg.best_s=permute(cfg.best_s,[2:ndims(cfg.best_s),1]);
+    cfg.best_z=permute(cfg.best_z,[2:ndims(cfg.best_z),1]);
     % sort in alphabetical order
     cfg=orderfields(cfg);
     
@@ -1112,15 +1111,6 @@ function D_i=cost_i(z_s)
 mu=nanmean(z_s,1);
 z_s=bsxfun(@minus,z_s,mu).^2;
 D_i=(z_s);
-
-function [d cm d1]=com(y,ratio)
-% calculate centre of mass cost
-N=numel(y);
-x=1:N;
-yp=y-min(y);
-cm=yp*x'/sum(yp);
-d1=(cm-(x(end)+x(1))/2);
-d=ratio*sumsqr(d1)/N;
 
 function s2=sumsqr(x)
 % sum of squares
