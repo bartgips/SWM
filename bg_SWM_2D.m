@@ -168,6 +168,9 @@ end
 sz=size(dat);
 if numel(sz)<3
   sz(3)=1;
+  multiDim=0;
+else
+  multiDim=1;
 end
 
 nanSel=(isnan(dat));
@@ -661,7 +664,6 @@ if dispPlot
   plotLegend=1;
   subplot(1,2,2)
   xlabel('Sliding dimension')
-  ylabel('Concatenated other dimensions')
 end
 
 swapcount=0;
@@ -784,6 +786,7 @@ while iter<numIt %&&  cc<cclim
       end
       
       if accept
+        cc(T)=0;
         %update everything with new values
         loc{T}(trl,tidx)=nLoc;
         clust{clustidx,T}.z_isum=z_sumdum;
@@ -799,11 +802,10 @@ while iter<numIt %&&  cc<cclim
             tloc=loc{T};
           end
           costMin(T)=D(T);
-          cc(T)=0;
-        else
-          cc(T)=cc(T)+1;
+          
         end
       else
+        cc(T)=cc(T)+1;
         rejcount(1,T)=rejcount(1,T)+1;
       end
       
@@ -847,6 +849,7 @@ while iter<numIt %&&  cc<cclim
       end
       
       if accept
+        cc(T)=0;
         %update everything
         clustID(lidx,T)=nclustidx;
         clust{clustidx,T}.linIdx=clust{clustidx,T}.linIdx(~relidx);
@@ -874,11 +877,9 @@ while iter<numIt %&&  cc<cclim
             end
           end
           costMin(T)=D(T);
-          cc(T)=0;
-        else
-          cc(T)=cc(T)+1;
         end
       else
+        cc(T)=cc(T)+1;
         rejcount(1,T)=rejcount(1,T)+1;
       end
     end
@@ -922,18 +923,33 @@ while iter<numIt %&&  cc<cclim
         TfacDum=Tfac(:);
         hleg=legend(h(TfacSel),num2str(flipud(TfacDum(TfacSel)),'%1.2e'),'location','southwest');
       else
-      hleg=legend(num2str(flipud(Tfac(:)),'%1.2e'),'location','southwest');
+        hleg=legend(num2str(flipud(Tfac(:)),'%1.2e'),'location','southwest');
       end
       set(get(hleg,'title'),'string','Tfac')
       plotLegend=0;
     end
     subplot(1,2,2)
-    imDum=reshape(squeeze(nanmean(z_i{1})),winLen,[])';
-    imagesc(imDum,maxabs(imDum));
-    colorbar
-    title('mean shape (lowest temperature)')
+    if multiDim
+      imDum=reshape(squeeze(nanmean(z_i{1})),winLen,[])';
+      imagesc(imDum,maxabs(imDum));
+      h=colorbar;
+      set(get(h,'ylabel'),'string','z-score')
+      title('mean shape (lowest temperature)')
+      ylabel('Concatenated other dimensions')
+    else
+      for TT=1:numel(plotselT)
+        plot(nanmean(z_i{plotselT(TT)}),'color',colorOrderShape(TT,:),'linewidth',2)
+        hold on
+      end
+      hold off
+      title('mean shape (lowest temperatures)')
+      hleg2=legend(num2str(Tfac(plotselT)','%1.2e'));
+      set(get(hleg2,'title'),'string','Tfac')
+      title('mean shape (lowest temperatures)')
+      ylabel('z-score')
+    end
     xlabel('Sliding dimension')
-    ylabel('Concatenated other dimensions')
+    
     drawnow
   end
   
