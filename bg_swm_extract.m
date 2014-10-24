@@ -1,5 +1,5 @@
-function [z, s, cfg]=bg_swm_extract(cfg, dat)
-% [z, s, cfg]=bg_swm_extract(cfg, dat)
+function [s, z, cfg]=bg_swm_extract(cfg, dat)
+% [s, z, cfg]=bg_swm_extract(cfg, dat)
 %
 % input:
 % cfg:    output from bg_SWM
@@ -172,7 +172,9 @@ if ~isfield(cfg,'numTemplates')
   cfg.numTemplates=numel(loc);
 end
 
-z=s;
+if nargout>1
+  z=s;
+end
 
 
 
@@ -194,7 +196,9 @@ if manualLoc
       %       finish=size(dat,2)+tidx+addLen;
       %       s(k,strt+1:finish)=dat(trl,1:end);
     end
-    z(k,:)=(s(k,:)-nanmean(s(k,:)))/nanstd(s(k,:));
+    if nargout>1
+      z(k,:)=(s(k,:)-nanmean(s(k,:)))/nanstd(s(k,:));
+    end
   end
   
 else
@@ -213,7 +217,9 @@ else
           s{n}(k,num+1:end)=dat(trl,1:loc(trl,tidx)+winLen+addLen-1);
         end
       end
-      z{n}=zscore(s{n},1,2);
+      if nargout>1
+        z{n}=zscore(s{n},1,2);
+      end
     end
   else
     for k=1:cfg.numTemplates
@@ -231,7 +237,9 @@ else
         %       finish=size(dat,2)+loc(trl,tidx)+addLen;
         %       s(k,strt+1:finish)=dat(trl,1:end);
       end
-      z(k,:)=(s(k,:)-nanmean(s(k,:)))/nanstd(s(k,:));
+      if nargout>1
+        z(k,:)=(s(k,:)-nanmean(s(k,:)))/nanstd(s(k,:));
+      end
     end
   end
 end
