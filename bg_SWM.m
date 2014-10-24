@@ -1,4 +1,4 @@
-function [cfg]=bg_SWM_2D(cfg, dat)
+function [cfg]=bg_SWM(cfg, dat)
 % [cfg]=bg_SWM(cfg, dat)
 %
 % Sliding Window Matching algorithm for detecting consistent, reocurring
@@ -61,7 +61,13 @@ function [cfg]=bg_SWM_2D(cfg, dat)
 % .outputFile:A filename to where the output should be written. If this is
 %             empty, the output will only be written to the workspace.
 %             (Like most Matlab functions do).
-%
+% .zscore:    Calculate the cost function based on z-scored windows or not.
+%             This is usefule when dealing with shapes of varying
+%             amplitude.
+%             (default = 0)
+% .normalize: Normalize data before finding shape by means of z-scoring
+%             (only really affects magnitude of values of cost function)
+% 
 %
 % Note: good values for .Tfac and .konstant depend on the scaling of your
 % data and the signal to noise level
@@ -85,6 +91,14 @@ function [cfg]=bg_SWM_2D(cfg, dat)
 %             main component is 10 Hz and .FhpFac=.5 it will apply 5 Hz HP
 %             filtering.
 % .Flp:       Low-Pass cut-off frequency. use as above.
+% .kernel:    A kernel that weights the cost function across the sliding
+%             dimension. E.g. you are searching for an evoked response that
+%             is more consistent at the beginning than at the end. Than a
+%             linear kernel of linspace(1,0,winLen) may be useful. 
+%             Note: the kernel can also extend over the other dimensions if
+%             you whish to diferentially weight different parts of the
+%             windows.
+%             (default = [1], I.e. a unity kernel or no kernel)
 %
 % FLAGS
 % .fullOutput:Flag to determine wheter the function should output the full
@@ -134,11 +148,11 @@ function [cfg]=bg_SWM_2D(cfg, dat)
 
 %% check validity of input fields
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
-  'costDistr';'costMin';'costTotal';...
+  'costDistr';'costMin';'costFinal';'costTotal';...
   'costTotal_end';'costTotal_undSamp';'debug';'dispPlot';'Fbs';...
-  'Fbp';'Fhp';'FhpFac';'Flp';'costFinal';'fname';'fs';'fullOutput';'guard';...
-  'konstant';'loc';'mask';'nPT';'numClust';'numIt';'numIter';'numTemplates';...
-  'numWin';'outputFile';'Tfac';'varname';'verbose';'winLen';'winLenFac'};
+  'Fbp';'Fhp';'FhpFac';'Flp';'fname';'fs';'fullOutput';'guard';'kernel';...
+  'konstant';'loc';'mask';'normalize';'nPT';'numClust';'numIt';'numIter';'numTemplates';...
+  'numWin';'outputFile';'Tfac';'varname';'verbose';'winLen';'winLenFac';'zscore'};
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
@@ -197,6 +211,24 @@ if isfield(cfg,'outputFile')
   end
 else
   outputFlag=false;
+end
+
+if isfield(cfg,'zscore')
+  zscoreFlag=cfg.zscore;
+else
+  zscoreFlag=0;
+end
+
+if isfield(cfg,'normalize')
+  normalize=cfg.normalize;
+  if normalize && ~zscoreFlag
+    datMean=nanmean(dat(:));
+    datStd=nanstd(dat(:),1);
+    dat=(dat-datMean)/datStd;
+  else
+    datMean=0;
+    datStd=1;
+  end
 end
 
 %% determine winLen
@@ -455,11 +487,14 @@ if isfield(cfg,'mask')
   maskFlag=true;
   mask=cfg.mask;
   numWinNew=0;
+  nanMask=zeros(size(mask));
+  nanMask(logical(mask))=nan;
+  dat=bsxfun(@plus,dat,nanMask);
   for T=1:nPT
     if T==1 || ~debug
       for n=1:size(mask,1)
         for k=1:numWin
-          selDum=loc{T}(n,k):min(loc{T}(n,k)+winLen-1,size(dat,2));
+          selDum=loc{T}(n,k):min(loc{T}(n,k)+min(winLen,guard)-1,size(dat,2));
           if ~isnan(loc{T}(n,k)) && any(mask(n,selDum))
             loc{T}(n,k)=nan; % remove locs by making them into NaNs (to keep matrix dimensions of loc)
           end
@@ -494,6 +529,15 @@ else
   maskFlag=false;
 end
 
+if isfield(cfg,'kernel');
+  kernel=cfg.kernel;
+  if isrow(kernel)
+    kernel=kernel(:);
+  end
+  kernel=kernel/sum(kernel(:))*numel(kernel); %normalize kernel to have comparable cost values with or without kernel
+else
+  kernel=1;
+end
 
 
 if isfield(cfg,'numClust')
@@ -552,10 +596,15 @@ for T=1:nPT
       [trldum idxdum]=ind2sub([numTrl,numWin],n);
       if maskFlag && isnan(loc{T}(trldum,idxdum))
         z_i{T}(n,:)=nan;
+        nanFlag=1;
       else
         s_i=zeros([winLen,sz(3:end)]);
         s_i(:)=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+winLen-1,:);
-        z_i{T}(n,:)=reshape((s_i-nanmean(s_i(:)))./nanstd(s_i(:),1),[],1);
+        if zscoreFlag
+          z_i{T}(n,:)=reshape(bsxfun(@times,kernel,(s_i-nanmean(s_i(:))))./nanstd(s_i(:),1),[],1);
+        else
+          z_i{T}(n,:)=reshape(bsxfun(@times,kernel,s_i),[],1);
+        end
       end
       msg=sprintf('\n Temperature %d/%d \n Template %d/%d', [T nPT n numTemplates]);
       if verbose
@@ -625,14 +674,20 @@ for T=1:nPT
   for n=1:numClust
     N_c=clust{n,T}.numTemplates;
     z_isum=nansum(z_i{T}(clust{n,T}.linIdx,:),1);
+    if zscoreFlag
+      clust{n,T}.varianceFac=N_c;
+    else
+      clust{n,T}.varianceFac=N_c*nanmean(nanmean(z_i{T}(clust{n,T}.linIdx,:).^2,2));
+    end
+    varianceFac=clust{n,T}.varianceFac;
     clust{n,T}.z_isum=z_isum;
     if nanFlag
       % correct for NaNs
       clust{n,T}.noNanCount=sum(~isnan(z_i{T}(clust{n,T}.linIdx,:)));
       nanFac=N_c./clust{n,T}.noNanCount;
-      clust{n,T}.tempCost=(N_c^2/(N_c-1))-((nanFac.^2.*z_isum)*z_isum.')/(N*(N_c-1));
+      clust{n,T}.tempCost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_isum)*z_isum.')/(N*(N_c-1));
     else
-      clust{n,T}.tempCost=(N_c^2/(N_c-1))-(z_isum*z_isum.')/(N*(N_c-1));
+      clust{n,T}.tempCost=(varianceFac*N_c/(N_c-1))-(z_isum*z_isum.')/(N*(N_c-1));
     end
     
     D(T)=D(T)+clust{n,T}.tempCost;
@@ -655,15 +710,13 @@ if dispPlot
   colorOrderShape(:,3)=linspace(1,0,numel(plotselT)); %make low T blue, high T Red
   
   hfig=figure;
-  set(hfig,'position',[100 100 1000 600])
-  set(gcf,'DefaultAxesColorOrder',flipud(colorOrder))
+  set(hfig,'position',[100 100 1000 600])  
   subplot(1,2,1)
+  set(gca,'ColorOrder',flipud(colorOrder))
   set(gca,'NextPlot','replacechildren')
   xlabel('iteration')
   ylabel('Cost')
   plotLegend=1;
-  subplot(1,2,2)
-  xlabel('Sliding dimension')
 end
 
 swapcount=0;
@@ -693,7 +746,8 @@ while iter<numIt %&&  cc<cclim
   iter=iter+1;
   iterPlot=iterPlot+1;
   swapcount=swapcount+1;
-  saveCount=saveCount+1;
+  saveCount=saveCount+outputFlag;
+  
   Tchangecount=Tchangecount+1;
   rejcount(2,:)=rejcount(2,:)+1;
   
@@ -734,7 +788,7 @@ while iter<numIt %&&  cc<cclim
         
         % also check for distance from mask
         if locChange && maskFlag
-          selDum=nLoc:min(nLoc+winLen-1,size(dat,2));
+          selDum=nLoc:min(nLoc+min(winLen,guard)-1,size(dat,2));
           maskDum=sum(mask(trl,selDum))<1;
           locChange=maskDum;
         end
@@ -750,20 +804,31 @@ while iter<numIt %&&  cc<cclim
         pcost=clust{clustidx,T}.tempCost;
         s_dum=zeros(winLen,sz(3:end));
         s_dum(:)=dat(trl,nLoc:nLoc+winLen-1,:);
-        z_dum=(s_dum-nanmean(s_dum(:)))/nanstd(s_dum(:),1);
+        
+        if zscoreFlag
+          z_dum=bsxfun(@times,kernel,(s_dum-nanmean(s_dum(:)))/nanstd(s_dum(:),1));
+          varianceFac=N_c;
+        else
+          z_dum=bsxfun(@times,kernel,s_dum);
+          varianceFac=clust{clustidx,T}.varianceFac;
+          pZ=z_i{T}(lidx,:);
+          varianceFac=varianceFac-nanmean(pZ.^2)+nanmean(z_dum(:).^2);
+        end
+        
+        
         
         if nanFlag
           pZ=z_i{T}(lidx,:);
           pZ(isnan(pZ))=0;
           nZ=z_dum;
           nZ(isnan(nZ))=0;
-          z_sumdum=clust{clustidx,T}.z_isum-pZ+nZ;
-          noNanCountdum=clust{clustidx,T}.noNanCount-isnan(z_i{T}(lidx,:))+isnan(z_dum);
+          z_sumdum=clust{clustidx,T}.z_isum-pZ+nZ(:)';
+          noNanCountdum=clust{clustidx,T}.noNanCount-isnan(z_i{T}(lidx,:))+isnan(z_dum(:)');
           nanFac=N_c./noNanCountdum;
-          ncost=(N_c^2/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+          ncost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         else
           z_sumdum=clust{clustidx,T}.z_isum-z_i{T}(lidx,:)+z_dum(:)';
-          ncost=(N_c^2/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+          ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         end
         
         
@@ -790,6 +855,7 @@ while iter<numIt %&&  cc<cclim
         %update everything with new values
         loc{T}(trl,tidx)=nLoc;
         clust{clustidx,T}.z_isum=z_sumdum;
+        clust{clustidx,T}.varianceFac=varianceFac;
         if nanFlag
           clust{clustidx,T}.noNanCount=noNanCountdum;
         end
@@ -820,9 +886,9 @@ while iter<numIt %&&  cc<cclim
       
       N_c=[clust{clustidx,T}.numTemplates clust{nclustidx,T}.numTemplates]+[-1 1];
       
-      
+      cZ=z_i{T}(lidx,:);
       if nanFlag
-        cZ=z_i{T}(lidx,:);
+        
         cZ(isnan(cZ))=0;
         z_sumdum=[clust{clustidx,T}.z_isum-cZ; clust{nclustidx,T}.z_isum+cZ];
         
@@ -830,11 +896,18 @@ while iter<numIt %&&  cc<cclim
         nanFac=bsxfun(@rdivide,N_c.',noNanCountdum);
         z2dum=[(nanFac(1,:).^2.*z_sumdum(1,:))*z_sumdum(1,:).' (nanFac(2,:).^2.*z_sumdum(2,:))*z_sumdum(2,:).'];
       else
-        z_sumdum=[clust{clustidx,T}.z_isum-z_i{T}(lidx,:); clust{nclustidx,T}.z_isum+z_i{T}(lidx,:)];
+        z_sumdum=[clust{clustidx,T}.z_isum-cZ; clust{nclustidx,T}.z_isum+cZ];
         z2dum=[z_sumdum(1,:)*z_sumdum(1,:).' z_sumdum(2,:)*z_sumdum(2,:).'];
       end
       
-      ncost=((N_c.^2./(N_c-1))-z2dum./(winLen*prod(sz(3:end))*(N_c-1)));
+      if zscoreFlag
+        varianceFac=N_c;
+      else
+        varianceFac=[clust{clustidx,T}.varianceFac clust{nclustidx,T}.varianceFac];
+        varianceFac=varianceFac+[-nanmean(cZ.^2) nanmean(cZ.^2)];
+      end
+      
+      ncost=((varianceFac.*N_c./(N_c-1))-z2dum./(winLen*prod(sz(3:end))*(N_c-1)));
       cVal=pcost-sum(ncost);
       
       %accept/reject cluster change
@@ -864,6 +937,8 @@ while iter<numIt %&&  cc<cclim
         clust{nclustidx,T}.tidx=[clust{nclustidx,T}.tidx clust{clustidx,T}.tidx(relidx)];
         clust{clustidx,T}.trl=clust{clustidx,T}.trl(~relidx);
         clust{clustidx,T}.tidx=clust{clustidx,T}.tidx(~relidx);
+        clust{clustidx,T}.varianceFac=varianceFac(1);
+        clust{nclustidx,T}.varianceFac=varianceFac(2);
         D(T)=D(T)-cVal;
         
         if costMin(T)>D(T)
@@ -932,28 +1007,54 @@ while iter<numIt %&&  cc<cclim
       set(get(hleg,'title'),'string','Tfac')
       plotLegend=0;
     end
-    subplot(1,2,2)
+    
     if multiDim
-      imDum=reshape(squeeze(nanmean(z_i{1})),winLen,[])';
-      imagesc(imDum,maxabs(imDum));
-      h=colorbar;
-      set(get(h,'ylabel'),'string','z-score')
-      title('mean shape (lowest temperature)')
-      ylabel('Concatenated other dimensions')
+      for n=1:min(numClust,3)
+        subplot(min(numClust,3),2,sub2ind([2 min(numClust,3)],2,n))
+        imDum=datMean+datStd*bsxfun(@rdivide,reshape(clust{n,1}.z_isum/clust{n,1}.numTemplates,winLen,[]),kernel)';
+        imagesc(imDum,maxabs(imDum));
+        h=colorbar;
+        if zscoreFlag
+          set(get(h,'ylabel'),'string','z-score')
+        else
+          set(get(h,'ylabel'),'string','mean Signal')
+        end
+        if numClust>1
+          title(['mean shape (lowest temperature); cluster ' num2str(n) '/' num2str(numClust)])
+        else
+          title(['mean shape (lowest temperature)'])
+        end
+        ylabel('Concatenated other dimensions')
+      end
     else
+      if numClust<2
       for TT=1:numel(plotselT)
-        plot(nanmean(z_i{plotselT(TT)}),'color',colorOrderShape(TT,:),'linewidth',2)
+        plot(clust{n,datMean+datStd*plotselT(TT)}.z_isum/clust{n,plotselT(TT)}.numTemplates./kernel,'color',colorOrderShape(TT,:),'linewidth',2)
         hold on
       end
       hold off
-      title('mean shape (lowest temperatures)')
       hleg2=legend(num2str(Tfac(plotselT)','%1.2e'));
       set(get(hleg2,'title'),'string','Tfac')
       title('mean shape (lowest temperatures)')
-      ylabel('z-score')
+      if zscoreFlag
+        ylabel('z-score')
+      else
+        ylabel('mean Signal')
+      end
+      else
+        for TT=1:numel(plotselT)
+          subplot(numel(plotselT),2,sub2ind([2 numel(plotselT)],2,TT))
+          set(gca,'ColorOrder',lines(8))
+          for n=1:min(numClust)
+          plot(datMean+datStd*clust{n,plotselT(TT)}.z_isum/clust{n,plotselT(TT)}.numTemplates./kernel,'linewidth',2)
+          hold all
+          end
+          hold off
+          title(['mean shapes (Tfac =' num2str(Tfac(plotselT(TT)),'%1.2e') ')'])
+        end
+      end
     end
     xlabel('Sliding dimension')
-    
     drawnow
   end
   
@@ -1022,7 +1123,7 @@ while iter<numIt %&&  cc<cclim
       cfg.costDistr{n}=cost_i(z_score(dum_s));
     end
     % make clusters the last dimension
-    cfg.best_s=permute(cfg.best_s,[2:ndims(cfg.best_s),1]);
+    cfg.best_s=datMean+datStd*permute(cfg.best_s,[2:ndims(cfg.best_s),1]);
     cfg.best_z=permute(cfg.best_z,[2:ndims(cfg.best_z),1]);
     % sort in alphabetical order
     cfg=orderfields(cfg);
@@ -1122,7 +1223,11 @@ s2 = sum(x2(:));
 function sx=nanstd(x,varargin)
 % replacement for nanstd
 sel=~isnan(x);
-sx=std(x(sel),varargin{1});
+if nargin>1
+  sx=std(x(sel),varargin{1});
+else
+  sx=std(x(sel));
+end
 
 function current_figure(h)
 set(0,'CurrentFigure',h)
