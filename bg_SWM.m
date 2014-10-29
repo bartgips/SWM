@@ -229,6 +229,9 @@ if isfield(cfg,'normalize')
     datMean=0;
     datStd=1;
   end
+else
+  datMean=0;
+  datStd=1
 end
 
 %% determine winLen
@@ -1179,32 +1182,26 @@ end
 function [loc,numWin]=initloc(guard,winLen,data,numWin)
 % initialize window locations
 len=size(data);
-
-dum=guard:2*guard:max((len(2)-winLen-guard),1);
+maxWin= floor(len(2)/guard)-1;
+dum=guard/2:1.5*guard:max((len(2)-winLen),1);
 if nargin<4
-  numWin=numel(dum);
+  numWin=maxWin;
 else
-  if numWin>numel(dum)
-    numWin=numel(dum);
+  if numWin>maxWin
+    numWin=maxWin;
   end
 end
 
 loc=nan(size(data,1),numWin);
 
+nEmptySpace=len(2)-numWin*guard;
+guards=[0:numWin-1]*guard;
+
 for n=1:len(1)
-  winCount=1;
-  winPos=nan(numWin,1);
-  winPos(1)=randperm(len(2)-winLen+1,1);
-  while winCount<numWin
-    nPos=randperm(len(2)-winLen+1,1);
-    %check validity
-    valid=min(abs(nPos-winPos))>guard;
-    if valid
-      winCount=winCount+1;
-      winPos(winCount)=nPos;
-    end
-  end
-  loc(n,:)=sort(winPos);
+  empty=sort(randperm(nEmptySpace,numWin));
+  winStarts=empty+guards;
+  
+  loc(n,:)=sort(winStarts);
 end
 
 function D_i=cost_i(z_s)
