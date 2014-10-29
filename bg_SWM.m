@@ -231,7 +231,7 @@ if isfield(cfg,'normalize')
   end
 else
   datMean=0;
-  datStd=1
+  datStd=1;
 end
 
 %% determine winLen
@@ -1194,7 +1194,7 @@ end
 
 loc=nan(size(data,1),numWin);
 
-nEmptySpace=len(2)-numWin*guard;
+nEmptySpace=len(2)-winLen-(numWin-1)*guard;
 guards=[0:numWin-1]*guard;
 
 for n=1:len(1)
