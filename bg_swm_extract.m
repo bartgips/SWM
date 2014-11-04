@@ -89,12 +89,14 @@ if isfield(cfg,'Fhp')
   else
     error('Sampling rate missing. High-pass filter is not possible without cfg.fs')
   end
+  if cfg.Fhp>0
   Fhp=cfg.Fhp;
   Fhp=Fhp(:);
   for freq=1:size(Fhp,1)
     for n=1:prod(sz(3:end))
     dat(:,:,n)=ft_preproc_highpassfilter(dat(:,:,n), fs, Fhp(freq),[],filttype);
     end
+  end
   end
 end
 

@@ -200,14 +200,40 @@ if nanFlag
   cfg.mask=mask;
 end
 
+if isfield(cfg,'verbose')
+  verbose=cfg.verbose;
+else
+  verbose=true;
+end
+
+
 if isfield(cfg,'outputFile')
   outputFile=cfg.outputFile;
   outputFlag=true;
-  % try writing to file
-  try
-    save(outputFile,'cfg');
-  catch
-    error(sprintf(['Unable to write to file:\n ' outputFile]));
+  [~, outputFile]=fileparts(outputFile); % remove file extension if present
+  outputFile=[outputFile '.mat']; % adding .mat extension
+  if verbose && exist([outputFile],'file')
+    warning('outputFile already exists...')
+    reply = input('Do you want to overwrite? Y/N [N]: ', 's');
+    if isempty(reply)
+      outputFlag = false;
+    elseif strcmpi(reply,'n')
+      outputFlag = false;
+    elseif strcmpi(reply,'y')
+      outputFlag = true;
+    else
+      warning('input not recognized, not overwriting')
+      outputFlag = false;
+    end
+  end
+  
+  if outputFlag
+    % try writing to file
+    try
+      save(outputFile,'cfg');
+    catch
+      error(sprintf(['Unable to write to file:\n ' outputFile]));
+    end
   end
 else
   outputFlag=false;
@@ -555,12 +581,6 @@ if isfield(cfg,'clust')
   clust=cfg.clust;
 else
   clustInit=1;
-end
-
-if isfield(cfg,'verbose')
-  verbose=cfg.verbose;
-else
-  verbose=true;
 end
 
 if isfield(cfg,'dispPlot')
