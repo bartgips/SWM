@@ -210,8 +210,8 @@ end
 if isfield(cfg,'outputFile')
   outputFile=cfg.outputFile;
   outputFlag=true;
-  [~, outputFile]=fileparts(outputFile); % remove file extension if present
-  outputFile=[outputFile '.mat']; % adding .mat extension
+  [outputDir, outputFile]=fileparts(outputFile); % remove file extension if present
+  outputFile=fullfile(outputDir,outputFile, '.mat'); % adding .mat extension
   if verbose && exist([outputFile],'file')
     warning('outputFile already exists...')
     reply = input('Do you want to overwrite? Y/N [N]: ', 's');
