@@ -51,7 +51,7 @@ function [cfg]=bg_SWM(cfg, dat)
 %             (default = logspace(-3,1,.nPT))
 % .konstant:  Bolzmann constant used in determining whether two
 %             temperatures should be exchanged.
-%             (default = 1e3)
+%             (default = 1e3, higher values make switches more likely)
 % .mask:      A mask indicating "forbidden" parts of the data. I.e.
 %             immovable barriers where the sliding windows cannot go. Mask
 %             should be a logical the same size as the data. 0's mean no
@@ -152,7 +152,7 @@ validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
   'costTotal_end';'costTotal_undSamp';'debug';'dispPlot';'Fbs';...
   'Fbp';'Fhp';'FhpFac';'Flp';'fname';'fs';'fullOutput';'guard';'kernel';...
   'konstant';'loc';'mask';'normalize';'nPT';'numClust';'numIt';'numIter';'numTemplates';...
-  'numWin';'outputFile';'Tfac';'varname';'verbose';'winLen';'winLenFac';'zscore'};
+  'numWin';'outputFile';'stepSz';'Tfac';'varname';'verbose';'winLen';'winLenFac';'zscore'};
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
@@ -489,6 +489,9 @@ if isfield(cfg,'loc')
   if isfield(cfg,'best_loc')
     loc{1}=cfg.best_loc;
   end
+  if ~numWin
+    numWin=size(loc{1},2);
+  end
 else
   loc=cell(1,nPT);
   locStart=1;
@@ -499,9 +502,9 @@ else
   for n=locStart:nPT
     if ~debug || n<2
       if numWin
-        [loc{n}, numWin]=initloc(guard,winLen,dat,numWin);
+        [loc{n}, numWin, stepSzdum]=initloc(guard,winLen,dat,numWin);
       else
-        [loc{n}, numWin]=initloc(guard,winLen,dat);
+        [loc{n}, numWin, stepSzdum]=initloc(guard,winLen,dat);
       end
     else
       loc{n}=loc{1};
@@ -509,6 +512,18 @@ else
   end
   tloc=loc{end};
   cfg.numWin=numWin;
+end
+
+if isfield(cfg,'stepSz')
+  stepSz=cfg.stepSz;
+else
+  if exist('stepSzdum','var') % stepsize determined by initloc
+    stepSz=stepSzdum; 
+    clear stepSzdum;
+  else
+    stepSz=ceil((size(dat,2)-(numWin-1)*guard-winLen)/numWin);
+  end
+  cfg.stepSz=stepSz;
 end
 
 % prune window locations if mask is present
@@ -797,7 +812,7 @@ while iter<numIt %&&  cc<cclim
       locChange=0;
       loopcount=0;
       while ~locChange && loopcount<11 %find a possible step; Brute force for maximally 10 times
-        dir=((rand>0.5)-0.5)*2*randval(floor(guard/2));
+        dir=((rand>0.5)-0.5)*2*round(stepSz*rand);
         nLoc=pLoc+dir;
         locChange= nLoc>0 && size(dat,2)-nLoc>=winLen;
         
@@ -806,7 +821,9 @@ while iter<numIt %&&  cc<cclim
           otherWinSel=true(numWin,1);
           otherWinSel(tidx)=false;
           minDist=min(abs(loc{T}(trl,otherWinSel)-nLoc));
-          locChange= minDist >= guard;
+          if ~isnan(minDist) % if minDist is NaN this means there are no other windows in this trial
+            locChange= minDist >= guard;
+          end
         end
         
         % also check for distance from mask
@@ -1199,11 +1216,10 @@ if numel(n)<2
 end
 [~,p] = max(rand(n(1),n(2)));
 
-function [loc,numWin]=initloc(guard,winLen,data,numWin)
+function [loc, numWin, stepSz]=initloc(guard,winLen,data,numWin)
 % initialize window locations
 len=size(data);
 maxWin= floor(len(2)/guard)-1;
-dum=guard/2:1.5*guard:max((len(2)-winLen),1);
 if nargin<4
   numWin=maxWin;
 else
@@ -1223,6 +1239,7 @@ for n=1:len(1)
   
   loc(n,:)=sort(winStarts);
 end
+stepSz=ceil(nEmptySpace/numWin);
 
 function D_i=cost_i(z_s)
 % calculate Error (i.e. difference from mean)
