@@ -242,7 +242,7 @@ end
 if isfield(cfg,'zscore')
   zscoreFlag=cfg.zscore;
 else
-  zscoreFlag=0;
+  zscoreFlag=1;
 end
 
 if isfield(cfg,'normalize')
@@ -1068,19 +1068,20 @@ while iter<numIt %&&  cc<cclim
       end
     else
       if numClust<2
-      for TT=1:numel(plotselT)
-        plot(clust{n,datMean+datStd*plotselT(TT)}.z_isum/clust{n,plotselT(TT)}.numTemplates./kernel,'color',colorOrderShape(TT,:),'linewidth',2)
-        hold on
-      end
-      hold off
-      hleg2=legend(num2str(Tfac(plotselT)','%1.2e'));
-      set(get(hleg2,'title'),'string','Tfac')
-      title('mean shape (lowest temperatures)')
-      if zscoreFlag
-        ylabel('z-score')
-      else
-        ylabel('mean Signal')
-      end
+        subplot(1,2,2)
+        for TT=1:numel(plotselT)
+          plot(clust{n,datMean+datStd*plotselT(TT)}.z_isum/clust{n,plotselT(TT)}.numTemplates./kernel,'color',colorOrderShape(TT,:),'linewidth',2)
+          hold on
+        end
+        hold off
+        hleg2=legend(num2str(Tfac(plotselT)','%1.2e'));
+        set(get(hleg2,'title'),'string','Tfac')
+        title('mean shape (lowest temperatures)')
+        if zscoreFlag
+          ylabel('z-score')
+        else
+          ylabel('mean Signal')
+        end
       else
         for TT=1:numel(plotselT)
           subplot(numel(plotselT),2,sub2ind([2 numel(plotselT)],2,TT))
