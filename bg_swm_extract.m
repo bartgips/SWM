@@ -129,10 +129,13 @@ cfg.addLen=addLen;
 newLen=winLen+2*addLen;
 cfg.newLen=newLen;
 
-if isfield(cfg,'best_loc')
+if isfield(cfg,'best_loc') && ~all(isnan(cfg.best_loc(:)))
   loc=cfg.best_loc;
 else
   loc=cfg.loc;
+  if iscell(loc)
+    loc=loc{1};
+  end
 end
 
 if isfield(cfg,'best_clust')
@@ -204,19 +207,19 @@ if manualLoc
   end
   
 else
-  if clustering %% DOES NOT WORK YET FOR DATA WITH MORE THAN 1 DIM
+  if clustering
     for n=1:numel(s)
       for k=1:cfg.clust{n}.numTemplates
         trl=cfg.clust{n}.trl(k);
         tidx=cfg.clust{n}.tidx(k);
         if loc(trl,tidx)+winLen+addLen<=size(dat,2) && loc(trl,tidx)-addLen>0
-          s{n}(k,:)=dat(trl,loc(trl,tidx)-addLen:loc(trl,tidx)+winLen+addLen-1);
+          s{n}(k,:)=reshape(dat(trl,loc(trl,tidx)-addLen:loc(trl,tidx)+winLen+addLen-1,:),[],1);
         elseif loc(trl,tidx)-addLen>0
           num=size(dat,2)-loc(trl,tidx)+1;
-          s{n}(k,1:num)=dat(trl,loc(trl,tidx):end);
+          s{n}(k,1:num,:)=reshape(dat(trl,loc(trl,tidx):end,:),[],1);
         elseif loc(trl,tidx)+addLen<=size(dat,2)
           num=1-(loc(trl,tidx)-addLen);
-          s{n}(k,num+1:end)=dat(trl,1:loc(trl,tidx)+winLen+addLen-1);
+          s{n}(k,num+1:end,:)=reshape(dat(trl,1:loc(trl,tidx)+winLen+addLen-1,:),[],1);
         end
       end
       if nargout>1
