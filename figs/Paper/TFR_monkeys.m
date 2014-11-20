@@ -13,6 +13,7 @@ Monkey={'Monkey O','Monkey S'};
 chansel={1:48, 17:32};
 
 alignment=  [9 2 3 3; 141 0 2 2];
+alignment=  [9 2 3 3; 141 0 2 2; 142 0 NaN 1; 143 1 7 NaN];
 %% okkie Chansel
 
 if strcmp(basedir(end-4:end),'Okkie')
@@ -253,10 +254,10 @@ for monkeyIt=1:numel(basedir)
   
 end
 %%
-save TFRs TFR t f
+save TFRs2 TFR t f
 %%
 
-load /home/mrphys/bargip/GIT/SWM/figs/Paper/TFRs.mat
+load /home/mrphys/bargip/GIT/SWM/figs/Paper/TFRs2.mat
 
 %%
 figure(99)
@@ -264,32 +265,48 @@ clf
 set(99,'position',[100 100 1400 600])
 fsz=14;
 sh=.09;
+
+gamBoxX=[.2 1 1 .2 .2]';
+gamBoxY=[[38 38 52 52 38]' [25 25 38 38 25]'+1];
+
 for n=1:numel(TFR)
   subaxis(1,2,n,'sh',sh)
   plotDum=TFR{n};
   plotDum=bsxfun(@times,plotDum,f(:).^2);
 %   plotDum=(bsxfun(@rdivide,plotDum,nanmean(plotDum(:,t<-.1),2)));
-  plotDum=(bsxfun(@minus,plotDum,nanmean(plotDum(:,t<-.1),2)));
-  imagesc(t,f,(plotDum),[0 max(max(plotDum(f<55,:)))])
+%   plotDum=(bsxfun(@minus,plotDum,nanmean(plotDum(:,t<-.1),2)));
+imDum=(plotDum);  
+imagesc(t,f,(imDum),[0 max(max(plotDum(f<55,:)))])
   set(gca,'fontsize',fsz)
-  [hl, ht]=vline(-.1,'--w','baseline');
-  set(hl,'linewidth',2,'color',[1 1 1]*.99);
-  txtpos=get(ht,'position');
-  txtpos(1)=-.4;
-  set(ht,'position',txtpos,'fontsize',fsz)
+  
+%   [hl, ht]=vline(-.1,'--w','baseline');
+%   set(hl,'linewidth',2,'color',[1 1 1]*.99);
+%   txtpos=get(ht,'position');
+%   txtpos(1)=-.4;
+%   set(ht,'position',txtpos,'fontsize',fsz)
+
+  hold on
+  h=plot(gamBoxX,gamBoxY(:,n),'--w','linewidth',2);
+  set(h,'color',[1 1 1]*.99);
+
   axis xy;
-  xlim([-.5 1])
+  xlim([-.5 1.1])
 %   vline(.2,'--w','start data for SWM')
   title(Monkey{n},'fontsize',fsz)
   bg_figureLabel(char(64+n))
   h=colorbar;
   set(h,'fontsize',fsz)
-  set(get(h,'ylabel'),'string','LFP power (V^2\cdots^2)','fontsize',fsz)
+  set(get(h,'ylabel'),'string','1/f^2 corrected LFP power (V^2)','fontsize',fsz)
+%   set(get(h,'ylabel'),'string','LFP power (V^2\cdots^2)','fontsize',fsz)
+%   set(get(h,'ylabel'),'string','LFP power relative to baseline','fontsize',fsz)
   xlabel('time relative to stimulus onset (s)','fontsize',fsz)
   ylabel('frequency (Hz)','fontsize',fsz)
 end
-colormap hot
+cmap=hot(256);
+cmap(1,:)=0;
+% cmap=flipud(cmap);
+colormap(cmap)
 
 
 %%
-export_fig(fullfile('/home/mrphys/bargip/GIT/SWM/figs/Paper','Fig4_monkeyTFRs'),'-transparent','-png','-eps','-pdf',99)
+export_fig(fullfile('/home/mrphys/bargip/GIT/SWM/figs/Paper','Fig4_monkeyTFRs3'),'-transparent','-png','-eps','-pdf',99)
