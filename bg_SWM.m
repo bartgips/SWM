@@ -1220,7 +1220,7 @@ end
 function [loc, numWin, stepSz]=initloc(guard,winLen,data,numWin)
 % initialize window locations
 len=size(data);
-maxWin= floor(len(2)/guard);
+maxWin= floor((len(2)-winLen+1)/(guard+1));
 if nargin<4
   numWin=maxWin;
 else
