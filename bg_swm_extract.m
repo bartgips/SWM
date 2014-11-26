@@ -8,18 +8,18 @@ function [s, z, cfg]=bg_swm_extract(cfg, dat)
 %         dataset (symetrically around the orignal window positions)
 %
 % dat:    optional; data that the cfg belongs to. (only relevant if cfg
-%         does not contain .varname and .fname
+%         does not contain .varName and .fName
 %
 %
 %
 % last edit: March 2014
 
 if nargin<2
-  dum=load(cfg.fname, cfg.varname);
-  eval(['dat=dum.' cfg.varname ';'])
+  dum=load(cfg.fName, cfg.varName);
+  eval(['dat=dum.' cfg.varName ';'])
 else
-  cfg.fname='function input';
-  cfg.varname='N/A';
+  cfg.fName='function input';
+  cfg.varName='N/A';
 end
 
 if iscolumn(dat)
@@ -148,11 +148,11 @@ if isfield(cfg,'clust') && numel(cfg.clust)>1
   clustering=true;
   s=cell(1,cfg.numclust);
   for n=1:numel(s)
-    s{n}=nan([cfg.clust{n}.numTemplates,newLen,sz(3:end)]);
+    s{n}=nan([cfg.clust{n}.numWindows,newLen,sz(3:end)]);
   end
 else
   clustering=false;
-  s=nan([cfg.numTemplates,newLen,sz(3:end)]);
+  s=nan([cfg.numWindows,newLen,sz(3:end)]);
 end
 
 
@@ -173,8 +173,8 @@ else
   manualLoc=false;
 end
 
-if ~isfield(cfg,'numTemplates')
-  cfg.numTemplates=numel(loc);
+if ~isfield(cfg,'numWindows')
+  cfg.numWindows=numel(loc);
 end
 
 if nargout>1
@@ -209,7 +209,7 @@ if manualLoc
 else
   if clustering
     for n=1:numel(s)
-      for k=1:cfg.clust{n}.numTemplates
+      for k=1:cfg.clust{n}.numWindows
         trl=cfg.clust{n}.trl(k);
         tidx=cfg.clust{n}.tidx(k);
         if loc(trl,tidx)+winLen+addLen<=size(dat,2) && loc(trl,tidx)-addLen>0
@@ -227,7 +227,7 @@ else
       end
     end
   else
-    for k=1:cfg.numTemplates
+    for k=1:cfg.numWindows
       [trl, tidx]=ind2sub(size(loc),k);
       if loc(trl,tidx)+winLen+addLen<=size(dat,2) && loc(trl,tidx)-addLen>0
         s(k,:)=reshape(dat(trl,loc(trl,tidx)-addLen:loc(trl,tidx)+winLen+addLen-1,:),[],1);

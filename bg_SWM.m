@@ -9,7 +9,7 @@ function [cfg]=bg_SWM(cfg, dat)
 % %%%%%%%
 % cfg:  a structure that contains all parameters
 % dat:  optional the data on which you want to apply the algorithm
-%       (not neccesary if cfg.fname and cfg.varname are present)
+%       (not neccesary if cfg.fName and cfg.varName are present)
 %       Dimensions: M x N x [Other dims]
 %       M: trials
 %       N: time points, dimension along which the windows slide
@@ -29,11 +29,11 @@ function [cfg]=bg_SWM(cfg, dat)
 %
 % Optional fields (they all have a default value):
 % CORE PARAMETERS
-% .fname:     path and filename of the .mat-file that contains the data on
+% .fName:     path and filename of the .mat-file that contains the data on
 %             which the algorithms must be applied.
 %             Note: if "dat" is given as input, this is set to 'function
 %             input'
-% .varname:   the name of the variable within .fname tha actually contains
+% .varName:   the name of the variable within .fName tha actually contains
 %             the data.
 %             Note: if "dat" is given as input, this is set to 'N/A'
 % .numIt:     the number of iterations the algorithm will run through.
@@ -41,7 +41,7 @@ function [cfg]=bg_SWM(cfg, dat)
 % .guard:     the minimal space between the starting positions of two
 %             succesive windows. Also determines the number of windows.
 %             (default = .winLen/1.5)
-% .numWin:    number of windows to fit per trial. Limited by length of
+% .winPerTrial:    number of windows to fit per trial. Limited by length of
 %             data, .winLen and .guard;
 %             (default = max)
 % .nPT:       number of parallel temperatures
@@ -150,9 +150,9 @@ function [cfg]=bg_SWM(cfg, dat)
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
   'costDistr';'costMin';'costFinal';'costTotal';...
   'costTotal_end';'costTotal_undSamp';'debug';'dispPlot';'Fbs';...
-  'Fbp';'Fhp';'FhpFac';'Flp';'fname';'fs';'fullOutput';'guard';'kernel';...
-  'konstant';'loc';'mask';'normalize';'nPT';'numClust';'numIt';'numIter';'numTemplates';...
-  'numWin';'outputFile';'stepSz';'Tfac';'varname';'verbose';'winLen';'winLenFac';'zscore'};
+  'Fbp';'Fhp';'FhpFac';'Flp';'fName';'fs';'fullOutput';'guard';'kernel';...
+  'konstant';'loc';'mask';'normalize';'nPT';'numClust';'numIt';'numIter';'numWindows';...
+  'winPerTrial';'outputFile';'stepSz';'Tfac';'varName';'verbose';'winLen';'winLenFac';'zscore'};
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
@@ -165,13 +165,13 @@ end
 %% loading data
 % load data from file instead of from function input
 if nargin<2
-  dum=load(cfg.fname, cfg.varname);
-  eval(['dat=dum.' cfg.varname ';'])
+  dum=load(cfg.fName, cfg.varName);
+  eval(['dat=dum.' cfg.varName ';'])
   clear dum
   fInputFlag=false;
 else
-  cfg.fname='function input';
-  cfg.varname='N/A';
+  cfg.fName='function input';
+  cfg.varName='N/A';
   fInputFlag=true;
 end
 
@@ -269,8 +269,8 @@ else
   nfft=2^nextpow2(size(dat,2))*4;
   spec=fft(diff(dat,1,2)',nfft);
   spec=spec(1:nfft/2+1,:);
-  [~,midx]=max(mean(abs(spec).^2,2));
-  shapeLen=nfft/midx;
+  [~,mIdx]=max(mean(abs(spec).^2,2));
+  shapeLen=nfft/mIdx;
   if size(dat,2)>200*shapeLen %multitaper to reduce noise
     clear spec
     mtLen=round(100*shapeLen);
@@ -283,8 +283,8 @@ else
     nfft=2^nextpow2(mtLen)*4;
     spec=fft(diff(datdum,1,2)',nfft);
     spec=spec(1:nfft/2+1,:);
-    [~,midx]=max(mean(abs(spec).^2,2));
-    shapeLen=nfft/midx;
+    [~,mIdx]=max(mean(abs(spec).^2,2));
+    shapeLen=nfft/mIdx;
   end
   if isfield(cfg,'winLenFac')
     winLen=round(cfg.winLenFac*shapeLen);
@@ -372,8 +372,8 @@ if isfield(cfg,'FhpFac')
     nfft=2^nextpow2(size(dat,2))*4;
     spec=fft(diff(dat,1,2)',nfft);
     spec=spec(1:nfft/2+1,:);
-    [~,midx]=max(mean(abs(spec).^2,2));
-    shapeLen=nfft/midx;
+    [~,mIdx]=max(mean(abs(spec).^2,2));
+    shapeLen=nfft/mIdx;
     if size(dat,2)>200*shapeLen %multitaper to reduce noise
       clear spec
       mtLen=round(100*shapeLen);
@@ -386,8 +386,8 @@ if isfield(cfg,'FhpFac')
       nfft=2^nextpow2(mtLen)*4;
       spec=fft(diff(datdum,1,2)',nfft);
       spec=spec(1:nfft/2+1,:);
-      [~,midx]=max(mean(abs(spec).^2,2));
-      shapeLen=nfft/midx;
+      [~,mIdx]=max(mean(abs(spec).^2,2));
+      shapeLen=nfft/mIdx;
     end
   end
   Fhp=1/(shapeLen/fs)*cfg.FhpFac;
@@ -418,7 +418,7 @@ end
 
 
 
-%%
+%% Determining parameters and their defaults
 % dat : mxn : m trials, n time points
 % 2*guard should be bigger than winLen
 
@@ -474,10 +474,10 @@ else
   cfg.Tfac=Tfac;
 end
 
-if isfield(cfg,'numWin')
-  numWin=cfg.numWin;
+if isfield(cfg,'winPerTrial')
+  winPerTrial=cfg.winPerTrial;
 else
-  numWin=0;
+  winPerTrial=0;
 end
 
 % initialize/read window locations
@@ -489,8 +489,8 @@ if isfield(cfg,'loc')
   if isfield(cfg,'best_loc')
     loc{1}=cfg.best_loc;
   end
-  if ~numWin
-    numWin=size(loc{1},2);
+  if ~winPerTrial
+    winPerTrial=size(loc{1},2);
   end
 else
   loc=cell(1,nPT);
@@ -501,17 +501,17 @@ else
   end
   for n=locStart:nPT
     if ~debug || n<2
-      if numWin
-        [loc{n}, numWin, stepSzdum]=initloc(guard,winLen,dat,numWin);
+      if winPerTrial
+        [loc{n}, winPerTrial, stepSzdum]=initloc(guard,winLen,dat,winPerTrial);
       else
-        [loc{n}, numWin, stepSzdum]=initloc(guard,winLen,dat);
+        [loc{n}, winPerTrial, stepSzdum]=initloc(guard,winLen,dat);
       end
     else
       loc{n}=loc{1};
     end
   end
   tloc=loc{end};
-  cfg.numWin=numWin;
+  cfg.winPerTrial=winPerTrial;
 end
 
 if isfield(cfg,'stepSz')
@@ -521,7 +521,7 @@ else
     stepSz=stepSzdum; 
     clear stepSzdum;
   else
-    stepSz=ceil((size(dat,2)-(numWin-1)*guard-winLen)/numWin);
+    stepSz=ceil((size(dat,2)-(winPerTrial-1)*guard-winLen)/winPerTrial);
   end
   cfg.stepSz=stepSz;
 end
@@ -530,14 +530,14 @@ end
 if isfield(cfg,'mask')
   maskFlag=true;
   mask=cfg.mask;
-  numWinNew=0;
+  winPerTrialNew=0;
   nanMask=zeros(size(mask));
   nanMask(logical(mask))=nan;
   dat=bsxfun(@plus,dat,nanMask);
   for T=1:nPT
     if T==1 || ~debug
       for n=1:size(mask,1)
-        for k=1:numWin
+        for k=1:winPerTrial
           selDum=loc{T}(n,k):min(loc{T}(n,k)+min(winLen,guard)-1,size(dat,2));
           if ~isnan(loc{T}(n,k)) && any(mask(n,selDum))
             loc{T}(n,k)=nan; % remove locs by making them into NaNs (to keep matrix dimensions of loc)
@@ -545,12 +545,12 @@ if isfield(cfg,'mask')
         end
       end
       loc{T}=sort(loc{T},2);
-      if numWinNew<numWin
-        numWinNewDum=find(mean(isnan(loc{T}))>.95,1)-1;
-        if isempty(numWinNewDum)
-          numWinNew=numWin;
+      if winPerTrialNew<winPerTrial
+        winPerTrialNewDum=find(mean(isnan(loc{T}))>.95,1)-1;
+        if isempty(winPerTrialNewDum)
+          winPerTrialNew=winPerTrial;
         else
-          numWinNew=max(numWinNewDum,numWinNew);
+          winPerTrialNew=max(winPerTrialNewDum,winPerTrialNew);
         end
       end
     else
@@ -558,15 +558,15 @@ if isfield(cfg,'mask')
     end
   end
   
-  if numWinNew<numWin % check whether loc matrix can be made smaller
-    numWin=numWinNew;
-    cfg.numWin=numWin;
+  if winPerTrialNew<winPerTrial % check whether loc matrix can be made smaller
+    winPerTrial=winPerTrialNew;
+    cfg.winPerTrial=winPerTrial;
     for T=1:nPT
-      loc{T}=loc{T}(:,1:numWin);
+      loc{T}=loc{T}(:,1:winPerTrial);
     end
   end
   
-  if numWin<1
+  if winPerTrial<1
     error('Mask inhibits placement of all windows')
   end
 else
@@ -616,12 +616,19 @@ end
 
 % find the number of sample vectors/templates
 numTrl=size(dat,1);
-numTemplates=numWin*numTrl;
-cfg.numTemplates=numTemplates;
+numWindows=winPerTrial*numTrl;
+cfg.numWindows=numWindows;
+
+% determining Tswap and FoV tunneling intervals based on numWindows and
+% nPT. 
+% Shift all windows 10 times on average before swapping
+TswapInterval=10*numWindows/nPT;
+% Shift all windows 5 times on average before swapping
+FoVShiftInterval=5*numWindows/numClust;
 
 % construct sample vectors
 z_i=cell(1,nPT);
-z_i(:)={nan([numTemplates,winLen,sz(3:end)])};
+z_i(:)={nan([numWindows,winLen,sz(3:end)])};
 
 if verbose
   fprintf('\nInitializing sliding windows and evaluating cost function...')
@@ -630,21 +637,21 @@ reverseStr='';
 
 for T=1:nPT
   if T<2 || ~debug
-    for n=1:numTemplates
-      [trldum idxdum]=ind2sub([numTrl,numWin],n);
-      if maskFlag && isnan(loc{T}(trldum,idxdum))
+    for n=1:numWindows
+      [trldum idxDum]=ind2sub([numTrl,winPerTrial],n);
+      if maskFlag && isnan(loc{T}(trldum,idxDum))
         z_i{T}(n,:)=nan;
         nanFlag=1;
       else
         s_i=zeros([winLen,sz(3:end)]);
-        s_i(:)=dat(trldum,loc{T}(trldum, idxdum):loc{T}(trldum, idxdum)+winLen-1,:);
+        s_i(:)=dat(trldum,loc{T}(trldum, idxDum):loc{T}(trldum, idxDum)+winLen-1,:);
         if zscoreFlag
           z_i{T}(n,:)=reshape(bsxfun(@times,kernel,(s_i-nanmean(s_i(:))))./nanstd(s_i(:),1),[],1);
         else
           z_i{T}(n,:)=reshape(bsxfun(@times,kernel,s_i),[],1);
         end
       end
-      msg=sprintf('\n Temperature %d/%d \n Template %d/%d', [T nPT n numTemplates]);
+      msg=sprintf('\n Temperature %d/%d \n Template %d/%d', [T nPT n numWindows]);
       if verbose
         fprintf([reverseStr, msg]);
       end
@@ -660,32 +667,32 @@ end
 
 if clustInit
   clust=cell(numClust,nPT);
-  clustID=nan(numTemplates,T);
-  tempperclust=round(numTemplates/numClust);
+  clustID=nan(numWindows,T);
+  tempperclust=round(numWindows/numClust);
   for T=1:nPT
     % initialize clusters
-    locidx=randperm(numTemplates);
+    locIdx=randperm(numWindows);
     
-    for clustidx=1:numClust
+    for clustIdx=1:numClust
       
-      if clustidx<numClust
-        locidxdum=locidx(1:tempperclust);
-        locidx=locidx(tempperclust+1:end);
+      if clustIdx<numClust
+        locIdxDum=locIdx(1:tempperclust);
+        locIdx=locIdx(tempperclust+1:end);
       else
-        locidxdum=locidx;
+        locIdxDum=locIdx;
       end
-      clustID(locidxdum,T)=clustidx;
-      [trldum tidxdum]=ind2sub([numTrl, numWin],locidxdum);
-      clust{clustidx,T}.linIdx=locidxdum;
-      clust{clustidx,T}.trl=trldum;
-      clust{clustidx,T}.tidx=tidxdum;
-      clust{clustidx,T}.numTemplates=numel(locidxdum);
+      clustID(locIdxDum,T)=clustIdx;
+      [trldum tIdxDum]=ind2sub([numTrl, winPerTrial],locIdxDum);
+      clust{clustIdx,T}.linIdx=locIdxDum;
+      clust{clustIdx,T}.trl=trldum;
+      clust{clustIdx,T}.tIdx=tIdxDum;
+      clust{clustIdx,T}.numWindows=numel(locIdxDum);
       
     end
   end
   
 else %only reconstruct clust ID and initial cost
-  clustID=nan(numTemplates,nPT);
+  clustID=nan(numWindows,nPT);
   for T=1:nPT
     for n=1:numClust;
       clustID(clust{n,T}.linIdx,T)=n;
@@ -710,7 +717,7 @@ N=winLen*prod(sz(3:end));
 for T=1:nPT
   D(T)=0;
   for n=1:numClust
-    N_c=clust{n,T}.numTemplates;
+    N_c=clust{n,T}.numWindows;
     z_isum=nansum(z_i{T}(clust{n,T}.linIdx,:),1);
     if zscoreFlag
       clust{n,T}.varianceFac=N_c;
@@ -719,9 +726,9 @@ for T=1:nPT
     end
     varianceFac=clust{n,T}.varianceFac;
     clust{n,T}.z_isum=z_isum;
+    clust{n,T}.noNanCount=sum(~isnan(z_i{T}(clust{n,T}.linIdx,:)));
     if nanFlag
       % correct for NaNs
-      clust{n,T}.noNanCount=sum(~isnan(z_i{T}(clust{n,T}.linIdx,:)));
       nanFac=N_c./clust{n,T}.noNanCount;
       clust{n,T}.tempCost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_isum)*z_isum.')/(N*(N_c-1));
     else
@@ -757,7 +764,8 @@ if dispPlot
   plotLegend=1;
 end
 
-swapcount=0;
+swapCount=0;
+tunnelCount=0;
 Tchangecount=0;
 saveCount=0;
 iterPlot=1;
@@ -783,9 +791,9 @@ end
 while iter<numIt %&&  cc<cclim
   iter=iter+1;
   iterPlot=iterPlot+1;
-  swapcount=swapcount+1;
+  swapCount=swapCount+1;
   saveCount=saveCount+outputFlag;
-  
+  tunnelCount=tunnelCount+1;
   Tchangecount=Tchangecount+1;
   rejcount(2,:)=rejcount(2,:)+1;
   
@@ -796,19 +804,19 @@ while iter<numIt %&&  cc<cclim
   end
   
   for T=1:nPT
-    lidx=randval(numTemplates);
+    linIdx=randval(numWindows);
     
-    while maskFlag && isnan(loc{T}(lidx)) % do not try to move pruned locs
-      lidx=randval(numTemplates);
+    while maskFlag && isnan(loc{T}(linIdx)) % do not try to move pruned locs
+      linIdx=randval(numWindows);
     end
-    clustidx=clustID(lidx,T);
+    clustIdx=clustID(linIdx,T);
     
     shift=rand<pshift;
     
     if shift %shift a window (no cluster swap)
-      [trl tidx]=ind2sub([numTrl,numWin],lidx);
+      [trl tIdx]=ind2sub([numTrl,winPerTrial],linIdx);
       
-      pLoc=loc{T}(trl,tidx);
+      pLoc=loc{T}(trl,tIdx);
       locChange=0;
       loopcount=0;
       while ~locChange && loopcount<11 %find a possible step; Brute force for maximally 10 times
@@ -816,10 +824,10 @@ while iter<numIt %&&  cc<cclim
         nLoc=pLoc+dir;
         locChange= nLoc>0 && size(dat,2)-nLoc>=winLen;
         
-        if locChange && numWin>1
+        if locChange && winPerTrial>1
           %check guard:
-          otherWinSel=true(numWin,1);
-          otherWinSel(tidx)=false;
+          otherWinSel=true(winPerTrial,1);
+          otherWinSel(tIdx)=false;
           minDist=min(abs(loc{T}(trl,otherWinSel)-nLoc));
           if ~isnan(minDist) % if minDist is NaN this means there are no other windows in this trial
             locChange= minDist >= guard;
@@ -839,9 +847,9 @@ while iter<numIt %&&  cc<cclim
       
       if locChange %valid step is found, now evaluate change in cost function
         
-        N_c=clust{clustidx,T}.numTemplates;
+        N_c=clust{clustIdx,T}.numWindows;
         %       pcost=D(T);
-        pcost=clust{clustidx,T}.tempCost;
+        pcost=clust{clustIdx,T}.tempCost;
         s_dum=zeros(winLen,sz(3:end));
         s_dum(:)=dat(trl,nLoc:nLoc+winLen-1,:);
         
@@ -850,24 +858,24 @@ while iter<numIt %&&  cc<cclim
           varianceFac=N_c;
         else
           z_dum=bsxfun(@times,kernel,s_dum);
-          varianceFac=clust{clustidx,T}.varianceFac;
-          pZ=z_i{T}(lidx,:);
+          varianceFac=clust{clustIdx,T}.varianceFac;
+          pZ=z_i{T}(linIdx,:);
           varianceFac=varianceFac-nanmean(pZ.^2)+nanmean(z_dum(:).^2);
         end
         
         
         
         if nanFlag
-          pZ=z_i{T}(lidx,:);
+          pZ=z_i{T}(linIdx,:);
           pZ(isnan(pZ))=0;
           nZ=z_dum;
           nZ(isnan(nZ))=0;
-          z_sumdum=clust{clustidx,T}.z_isum-pZ+nZ(:)';
-          noNanCountdum=clust{clustidx,T}.noNanCount-isnan(z_i{T}(lidx,:))+isnan(z_dum(:)');
+          z_sumdum=clust{clustIdx,T}.z_isum-pZ+nZ(:)';
+          noNanCountdum=clust{clustIdx,T}.noNanCount-isnan(z_i{T}(linIdx,:))+isnan(z_dum(:)');
           nanFac=N_c./noNanCountdum;
           ncost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         else
-          z_sumdum=clust{clustidx,T}.z_isum-z_i{T}(lidx,:)+z_dum(:)';
+          z_sumdum=clust{clustIdx,T}.z_isum-z_i{T}(linIdx,:)+z_dum(:)';
           ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         end
         
@@ -879,7 +887,7 @@ while iter<numIt %&&  cc<cclim
         cVal=-inf;
       end
       
-      % Determine wheter to accept or reject window shift
+      % Determine whether to accept or reject window shift
       if cVal>0
         accept=true;
       else
@@ -893,15 +901,15 @@ while iter<numIt %&&  cc<cclim
       if accept
         cc(T)=0;
         %update everything with new values
-        loc{T}(trl,tidx)=nLoc;
-        clust{clustidx,T}.z_isum=z_sumdum;
-        clust{clustidx,T}.varianceFac=varianceFac;
+        loc{T}(trl,tIdx)=nLoc;
+        clust{clustIdx,T}.z_isum=z_sumdum;
+        clust{clustIdx,T}.varianceFac=varianceFac;
         if nanFlag
-          clust{clustidx,T}.noNanCount=noNanCountdum;
+          clust{clustIdx,T}.noNanCount=noNanCountdum;
         end
-        clust{clustidx,T}.tempCost=ncost;
+        clust{clustIdx,T}.tempCost=ncost;
         D(T)=D(T)-cVal;
-        z_i{T}(lidx,:)=z_dum(:);
+        z_i{T}(linIdx,:)=z_dum(:);
         if costMin(T)>D(T)
           if mincostTot>D(T);
             mincostTot=D(T);
@@ -917,33 +925,33 @@ while iter<numIt %&&  cc<cclim
       
       
     else %cluster swap instead of window shift
-      relidx=clust{clustidx,T}.linIdx==lidx;
-      nclustidx=randval(numClust);
-      while nclustidx == clustidx
-        nclustidx=randval(numClust);
+      relinIdx=clust{clustIdx,T}.linIdx==linIdx;
+      nclustIdx=randval(numClust);
+      while nclustIdx == clustIdx
+        nclustIdx=randval(numClust);
       end
-      pcost=clust{clustidx,T}.tempCost+clust{nclustidx,T}.tempCost;
+      pcost=clust{clustIdx,T}.tempCost+clust{nclustIdx,T}.tempCost;
       
-      N_c=[clust{clustidx,T}.numTemplates clust{nclustidx,T}.numTemplates]+[-1 1];
+      N_c=[clust{clustIdx,T}.numWindows clust{nclustIdx,T}.numWindows]+[-1 1];
       
-      cZ=z_i{T}(lidx,:);
+      cZ=z_i{T}(linIdx,:);
       if nanFlag
         
         cZ(isnan(cZ))=0;
-        z_sumdum=[clust{clustidx,T}.z_isum-cZ; clust{nclustidx,T}.z_isum+cZ];
+        z_sumdum=[clust{clustIdx,T}.z_isum-cZ; clust{nclustIdx,T}.z_isum+cZ];
         
-        noNanCountdum=[clust{clustidx,T}.noNanCount-isnan(z_i{T}(lidx,:)); clust{nclustidx,T}.noNanCount+isnan(z_i{T}(lidx,:))];
+        noNanCountdum=[clust{clustIdx,T}.noNanCount-isnan(z_i{T}(linIdx,:)); clust{nclustIdx,T}.noNanCount+isnan(z_i{T}(linIdx,:))];
         nanFac=bsxfun(@rdivide,N_c.',noNanCountdum);
         z2dum=[(nanFac(1,:).^2.*z_sumdum(1,:))*z_sumdum(1,:).' (nanFac(2,:).^2.*z_sumdum(2,:))*z_sumdum(2,:).'];
       else
-        z_sumdum=[clust{clustidx,T}.z_isum-cZ; clust{nclustidx,T}.z_isum+cZ];
+        z_sumdum=[clust{clustIdx,T}.z_isum-cZ; clust{nclustIdx,T}.z_isum+cZ];
         z2dum=[z_sumdum(1,:)*z_sumdum(1,:).' z_sumdum(2,:)*z_sumdum(2,:).'];
       end
       
       if zscoreFlag
         varianceFac=N_c;
       else
-        varianceFac=[clust{clustidx,T}.varianceFac clust{nclustidx,T}.varianceFac];
+        varianceFac=[clust{clustIdx,T}.varianceFac clust{nclustIdx,T}.varianceFac];
         varianceFac=varianceFac+[-nanmean(cZ.^2) nanmean(cZ.^2)];
       end
       
@@ -964,21 +972,21 @@ while iter<numIt %&&  cc<cclim
       if accept
         cc(T)=0;
         %update everything
-        clustID(lidx,T)=nclustidx;
-        clust{clustidx,T}.linIdx=clust{clustidx,T}.linIdx(~relidx);
-        clust{nclustidx,T}.linIdx=[clust{nclustidx,T}.linIdx lidx];
-        clust{clustidx,T}.z_isum=z_sumdum(1,:);
-        clust{nclustidx,T}.z_isum=z_sumdum(2,:);
-        clust{clustidx,T}.tempCost=ncost(1);
-        clust{nclustidx,T}.tempCost=ncost(2);
-        clust{clustidx,T}.numTemplates=clust{clustidx,T}.numTemplates-1;
-        clust{nclustidx,T}.numTemplates=clust{nclustidx,T}.numTemplates+1;
-        clust{nclustidx,T}.trl=[clust{nclustidx,T}.trl clust{clustidx,T}.trl(relidx)];
-        clust{nclustidx,T}.tidx=[clust{nclustidx,T}.tidx clust{clustidx,T}.tidx(relidx)];
-        clust{clustidx,T}.trl=clust{clustidx,T}.trl(~relidx);
-        clust{clustidx,T}.tidx=clust{clustidx,T}.tidx(~relidx);
-        clust{clustidx,T}.varianceFac=varianceFac(1);
-        clust{nclustidx,T}.varianceFac=varianceFac(2);
+        clustID(linIdx,T)=nclustIdx;
+        clust{clustIdx,T}.linIdx=clust{clustIdx,T}.linIdx(~relinIdx);
+        clust{nclustIdx,T}.linIdx=[clust{nclustIdx,T}.linIdx linIdx];
+        clust{clustIdx,T}.z_isum=z_sumdum(1,:);
+        clust{nclustIdx,T}.z_isum=z_sumdum(2,:);
+        clust{clustIdx,T}.tempCost=ncost(1);
+        clust{nclustIdx,T}.tempCost=ncost(2);
+        clust{clustIdx,T}.numWindows=clust{clustIdx,T}.numWindows-1;
+        clust{nclustIdx,T}.numWindows=clust{nclustIdx,T}.numWindows+1;
+        clust{nclustIdx,T}.trl=[clust{nclustIdx,T}.trl clust{clustIdx,T}.trl(relinIdx)];
+        clust{nclustIdx,T}.tIdx=[clust{nclustIdx,T}.tIdx clust{clustIdx,T}.tIdx(relinIdx)];
+        clust{clustIdx,T}.trl=clust{clustIdx,T}.trl(~relinIdx);
+        clust{clustIdx,T}.tIdx=clust{clustIdx,T}.tIdx(~relinIdx);
+        clust{clustIdx,T}.varianceFac=varianceFac(1);
+        clust{nclustIdx,T}.varianceFac=varianceFac(2);
         D(T)=D(T)-cVal;
         
         if costMin(T)>D(T)
@@ -988,7 +996,7 @@ while iter<numIt %&&  cc<cclim
             tclustID=clustID(:,T);
             tclust=clust(:,T);
             for nn=1:numClust
-              clustnumel(nn)=tclust{nn}.numTemplates;
+              clustnumel(nn)=tclust{nn}.numWindows;
             end
           end
           costMin(T)=D(T);
@@ -1004,7 +1012,7 @@ while iter<numIt %&&  cc<cclim
   
   % Every couple of iterations, try a state swap between two randomly
   % chosen temperatures
-  if nPT>1 && swapcount >= .5e3/(nPT);
+  if nPT>1 && swapCount >= TswapInterval;
     Tswap=randperm(nPT,2);
     %     Tswap=[Tswap Tswap+1];
     pswap=exp(1/konstant*diff(1./Tfac(Tswap))*diff(D(Tswap)));
@@ -1015,7 +1023,133 @@ while iter<numIt %&&  cc<cclim
       clust(:,fliplr(Tswap))=clust(:,(Tswap));
       clustID(:,fliplr(Tswap))=clustID(:,(Tswap));
     end
-    swapcount=0;
+    swapCount=0;
+  end
+  
+  % Every couple of interations, try moving the entire FoV (moving all
+  % windows at once)
+  if tunnelCount >= FoVShiftInterval
+    tunnelCount=0;
+    for T=1:nPT
+      % try tunneling a random cluster
+      clustIdx=randperm(numClust);
+      linIdx=clust{clustIdx,T}.linIdx;
+      stepFoV=sign(rand-.5)*randperm(ceil(guard/2),1);
+      pLoc=loc{T};
+      nLoc=pLoc;
+      nLoc(linIdx)=nLoc(linIdx)+stepFoV;
+      
+      % check whether there are clashes with other clusters
+      if size(nLoc,2)>1
+        winDist=diff(sort(nLoc,2),1,2);
+        tolerance = 0; % no collissions are tolerable
+        invalid=mean(winDist(:)<guard)>tolerance;
+        if invalid
+          continue % do not shift FoV
+        end
+      end
+      
+      
+      locMask=true(size(pLoc));
+      locMask(linIdx)=false;
+      extractLoc=nLoc;
+      extractLoc(locMask)=nan;
+      % calculate new z_isum
+      extractCfg=[];
+      extractCfg.best_loc=extractLoc;
+      extractCfg.winLen=winLen;
+      extractCfg.numWindows=numWindows;
+      [s_New,z_New]=bg_swm_extract(extractCfg,dat);
+      
+      oldnanFlag=nanFlag;
+      nanFlag=any(isnan(z_dum(:)));
+      
+      if nanFlag
+        %check whether the shift of FoV is not too much. I.e. it should not
+        %move it from the data into nothingness
+        nanPercent= mean(isnan(s_New(:,:)));
+        
+        %do not tolerate of 10% of winLen contains mostly nan's
+        toleranceLen=ceil(.1*winLen);
+        invalid=mean(nanPercent(1:toleranceLen))>.5 || mean(nanPercent(1:toleranceLen))>.5;
+        if invalid
+          nanFlag=oldnanFlag;
+          continue % do not shift FoV
+        end
+      end
+      
+      
+      N_c=clust{clustIdx,T}.numWindows;
+      pcost=clust{clustIdx,T}.tempCost;
+      
+      if zscoreFlag
+        z_dum=bsxfun(@times,kernel,z_New);
+        varianceFac=N_c;
+      else
+        z_dum=bsxfun(@times,kernel,s_New);
+        pZ=z_i{T}(linIdx,:);
+        varianceFac=N_c*nanmean(nanmean(z_dum.^2,2));
+      end
+      
+      
+      if nanFlag
+        nZ=z_dum;
+        nZ(isnan(nZ))=0;
+        noNanCountdum=sum(~isnan(z_dum(:,:)),1);
+        nanFac=N_c./noNanCountdum;
+        z_sumdum=sum(nZ(:,:));
+        ncost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+      else
+        z_sumdum=sum(z_dum(:,:));
+        ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+      end
+      
+      
+      
+      
+      
+      
+      % change in cost function
+      cVal=(pcost-ncost);
+      
+      
+      % Determine whether to accept or reject window shift
+      if cVal>0
+        accept=true;
+      else
+        if rand<exp(1/Tfac(T)*cVal)
+          accept=true;
+        else
+          accept=false;
+        end
+      end
+      
+      if accept
+        cc(T)=0;
+        %update everything with new values
+        loc{T}=nLoc;
+        clust{clustIdx,T}.z_isum=z_sumdum;
+        clust{clustIdx,T}.varianceFac=varianceFac;
+        if nanFlag
+          clust{clustIdx,T}.noNanCount=noNanCountdum;
+        end
+        clust{clustIdx,T}.tempCost=ncost;
+        D(T)=D(T)-cVal;
+        z_i{T}(linIdx,:)=z_dum(:,:);
+        if costMin(T)>D(T)
+          if mincostTot>D(T);
+            mincostTot=D(T);
+            tloc=loc{T};
+          end
+          costMin(T)=D(T);
+          
+        end
+      else
+        cc(T)=cc(T)+1;
+        rejcount(1,T)=rejcount(1,T)+1;
+        nanFlag=oldnanFlag;
+      end      
+    end
   end
   
   DTfac=[D; Tfac; cc];
@@ -1051,7 +1185,7 @@ while iter<numIt %&&  cc<cclim
     if multiDim
       for n=1:min(numClust,3)
         subplot(min(numClust,3),2,sub2ind([2 min(numClust,3)],2,n))
-        imDum=datMean+datStd*bsxfun(@rdivide,reshape(clust{n,1}.z_isum/clust{n,1}.numTemplates,winLen,[]),kernel)';
+        imDum=datMean+datStd*bsxfun(@rdivide,reshape(clust{n,1}.z_isum/clust{n,1}.numWindows,winLen,[]),kernel)';
         imagesc(imDum,maxabs(imDum));
         h=colorbar;
         if zscoreFlag
@@ -1070,7 +1204,7 @@ while iter<numIt %&&  cc<cclim
       if numClust<2
         subplot(1,2,2)
         for TT=1:numel(plotselT)
-          plot(clust{n,datMean+datStd*plotselT(TT)}.z_isum/clust{n,plotselT(TT)}.numTemplates./kernel,'color',colorOrderShape(TT,:),'linewidth',2)
+          plot(clust{n,datMean+datStd*plotselT(TT)}.z_isum/clust{n,plotselT(TT)}.numWindows./kernel,'color',colorOrderShape(TT,:),'linewidth',2)
           hold on
         end
         hold off
@@ -1087,7 +1221,7 @@ while iter<numIt %&&  cc<cclim
           subplot(numel(plotselT),2,sub2ind([2 numel(plotselT)],2,TT))
           set(gca,'ColorOrder',lines(8))
           for n=1:min(numClust)
-          plot(datMean+datStd*clust{n,plotselT(TT)}.z_isum/clust{n,plotselT(TT)}.numTemplates./kernel,'linewidth',2)
+          plot(datMean+datStd*clust{n,plotselT(TT)}.z_isum/clust{n,plotselT(TT)}.numWindows./kernel,'linewidth',2)
           hold all
           end
           hold off
@@ -1150,12 +1284,12 @@ while iter<numIt %&&  cc<cclim
     cfg.costDistr=cell(1,numClust);
     for n=1:numClust
       
-      dum_s=nan([tclust{n}.numTemplates,winLen, sz(3:end)]);
-      for k=1:tclust{n}.numTemplates
+      dum_s=nan([tclust{n}.numWindows,winLen, sz(3:end)]);
+      for k=1:tclust{n}.numWindows
         trl=tclust{n}.trl(k);
-        tidx=tclust{n}.tidx(k);
-        if ~isnan(tloc(trl,tidx))
-          dum_s(k,:)=reshape(dat(trl,tloc(trl,tidx):tloc(trl,tidx)+winLen-1,:),[],1);
+        tIdx=tclust{n}.tIdx(k);
+        if ~isnan(tloc(trl,tIdx))
+          dum_s(k,:)=reshape(dat(trl,tloc(trl,tIdx):tloc(trl,tIdx)+winLen-1,:),[],1);
         end
       end
       cfg.best_s(n,:)=reshape(nanmean(dum_s,1),[],1);
@@ -1217,30 +1351,30 @@ if numel(n)<2
 end
 [~,p] = max(rand(n(1),n(2)));
 
-function [loc, numWin, stepSz]=initloc(guard,winLen,data,numWin)
+function [loc, winPerTrial, stepSz]=initloc(guard,winLen,data,winPerTrial)
 % initialize window locations
 len=size(data);
 maxWin= floor((len(2)-winLen+1)/(guard+1));
 if nargin<4
-  numWin=maxWin;
+  winPerTrial=maxWin;
 else
-  if numWin>maxWin
-    numWin=maxWin;
+  if winPerTrial>maxWin
+    winPerTrial=maxWin;
   end
 end
 
-loc=nan(size(data,1),numWin);
+loc=nan(size(data,1),winPerTrial);
 
-nEmptySpace=len(2)-winLen-(numWin-1)*guard;
-guards=[0:numWin-1]*guard;
+nEmptySpace=len(2)-winLen-(winPerTrial-1)*guard;
+guards=[0:winPerTrial-1]*guard;
 
 for n=1:len(1)
-  empty=sort(randperm(nEmptySpace,numWin));
+  empty=sort(randperm(nEmptySpace,winPerTrial));
   winStarts=empty+guards;
   
   loc(n,:)=sort(winStarts);
 end
-stepSz=ceil(nEmptySpace/numWin);
+stepSz=ceil(nEmptySpace/winPerTrial);
 
 function D_i=cost_i(z_s)
 % calculate Error (i.e. difference from mean)

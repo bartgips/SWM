@@ -5,14 +5,14 @@ function [TFR, f, sd, sem, PLV]=bg_swm_TFR(cfg, freqoi, dat)
 % cfg:    output from bg_SWM
 % freqoi: frequencies of interest
 % dat:    optional; data that the cfg belongs to. (only relevant if cfg
-%         does not contain .varname and .fname
+%         does not contain .varName and .fName
 % 
 % last edit: 6 March 2014
 
 
 if nargin<3
-  dum=load(cfg.fname, cfg.varname);
-  eval(['dat=dum.' cfg.varname ';'])
+  dum=load(cfg.fName, cfg.varName);
+  eval(['dat=dum.' cfg.varName ';'])
 end
 
 if iscolumn(dat)
@@ -78,7 +78,7 @@ t=[1:size(dat,2)]/cfg.fs;
 
 % freqoi=[1:2:100];
 timoi=t;
-groupsz=min(100,size(dat,1));
+groupsz=min(50,size(dat,1));
 tfr=nan(groupsz,numel(freqoi),numel(timoi));
 numgroups=ceil(size(dat,1)/groupsz);
 if verbose
