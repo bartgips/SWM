@@ -1283,19 +1283,24 @@ while iter<numIt %&&  cc<cclim
     cfg.best_z=cfg.best_s;
     cfg.costDistr=cell(1,numClust);
     for n=1:numClust
+    
+      locMask=true(size(tLoc));
+      locMask(tclust{n}.lIdx)=false;
       
-      dum_s=nan([tclust{n}.numWindows,winLen, sz(3:end)]);
-      for k=1:tclust{n}.numWindows
-        trl=tclust{n}.trl(k);
-        tIdx=tclust{n}.tIdx(k);
-        if ~isnan(tloc(trl,tIdx))
-          dum_s(k,:)=reshape(dat(trl,tloc(trl,tIdx):tloc(trl,tIdx)+winLen-1,:),[],1);
-        end
-      end
-      cfg.best_s(n,:)=reshape(nanmean(dum_s,1),[],1);
-      cfg.best_z(n,:)=nanmean(bsxfun(@rdivide,bsxfun(@minus,reshape(dum_s,size(dum_s,1),[]),mean(reshape(dum_s,size(dum_s,1),[]),2)),std(reshape(dum_s,size(dum_s,1),[]),1,2)),1);
+      extractLoc=tloc;
+      extractLoc(locMask)=nan;
+      % calculate new z_isum
+      extractCfg=[];
+      extractCfg.best_loc=extractLoc;
+      extractCfg.winLen=winLen;
+      extractCfg.numWindows=numWindows;
+      [s_Out,z_Out]=bg_swm_extract(extractCfg,dat);
       
-      cfg.costDistr{n}=cost_i(z_score(dum_s));
+      
+      cfg.best_s(n,:)=reshape(nanmean(s_Out,1),[],1);
+      cfg.best_z(n,:)=reshape(nanmean(z_Out,1),[],1);
+      
+      cfg.costDistr{n}=cost_i(z_score(s_Out));
     end
     % make clusters the last dimension
     cfg.best_s=datMean+datStd*permute(cfg.best_s,[2:ndims(cfg.best_s),1]);
