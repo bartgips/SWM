@@ -67,7 +67,7 @@ function [cfg]=bg_SWM(cfg, dat)
 %             (default = 0)
 % .normalize: Normalize data before finding shape by means of z-scoring
 %             (only really affects magnitude of values of cost function)
-% 
+%
 %
 % Note: good values for .Tfac and .konstant depend on the scaling of your
 % data and the signal to noise level
@@ -94,7 +94,7 @@ function [cfg]=bg_SWM(cfg, dat)
 % .kernel:    A kernel that weights the cost function across the sliding
 %             dimension. E.g. you are searching for an evoked response that
 %             is more consistent at the beginning than at the end. Than a
-%             linear kernel of linspace(1,0,winLen) may be useful. 
+%             linear kernel of linspace(1,0,winLen) may be useful.
 %             Note: the kernel can also extend over the other dimensions if
 %             you whish to diferentially weight different parts of the
 %             windows.
@@ -138,9 +138,9 @@ function [cfg]=bg_SWM(cfg, dat)
 %                 convenience. (No need to dig into best_clust).
 % .costTotal:     The trajectories of the cost function for every temperature
 %                 seperately. Only given when cfg.fullOutput=1.
-% .totcost_unSamp:As above, but undersampled by a factor 100 to save
+% .costTotal_unSamp:As above, but undersampled by a factor 100 to save
 %                 diskspace. given when cfg.fullOutput=0;
-% .costTotal_end:   The cost values, but only for the final 2000 iterations.
+% .costTotal_end: The cost values, but only for the final 2000 iterations.
 %                 Given when cfg.fullOutput=0;
 %
 %
@@ -518,7 +518,7 @@ if isfield(cfg,'stepSz')
   stepSz=cfg.stepSz;
 else
   if exist('stepSzdum','var') % stepsize determined by initloc
-    stepSz=stepSzdum; 
+    stepSz=stepSzdum;
     clear stepSzdum;
   else
     stepSz=ceil((size(dat,2)-(winPerTrial-1)*guard-winLen)/winPerTrial);
@@ -620,11 +620,11 @@ numWindows=winPerTrial*numTrl;
 cfg.numWindows=numWindows;
 
 % determining Tswap and FoV tunneling intervals based on numWindows and
-% nPT. 
-% Shift all windows 10 times on average before swapping
-TswapInterval=10*numWindows/nPT;
+% nPT.
 % Shift all windows 5 times on average before swapping
-FoVShiftInterval=5*numWindows/numClust;
+TswapInterval=5*numWindows/nPT;
+% Shift all windows 2 times on average before shifting FoV
+FoVShiftInterval=2*numWindows/numClust;
 
 % construct sample vectors
 z_i=cell(1,nPT);
@@ -681,6 +681,7 @@ if clustInit
       else
         locIdxDum=locIdx;
       end
+      locIdxDum=locIdxDum(~isnan(loc{T}(locIdxDum)));
       clustID(locIdxDum,T)=clustIdx;
       [trldum tIdxDum]=ind2sub([numTrl, winPerTrial],locIdxDum);
       clust{clustIdx,T}.linIdx=locIdxDum;
@@ -755,7 +756,7 @@ if dispPlot
   colorOrderShape(:,3)=linspace(1,0,numel(plotselT)); %make low T blue, high T Red
   
   hfig=figure;
-  set(hfig,'position',[100 100 1000 600])  
+  set(hfig,'position',[100 100 1000 600])
   subplot(1,2,1)
   set(gca,'ColorOrder',flipud(colorOrder))
   set(gca,'NextPlot','replacechildren')
@@ -1031,124 +1032,125 @@ while iter<numIt %&&  cc<cclim
   if tunnelCount >= FoVShiftInterval
     tunnelCount=0;
     for T=1:nPT
-      % try tunneling a random cluster
-      clustIdx=randperm(numClust);
-      linIdx=clust{clustIdx,T}.linIdx;
-      stepFoV=sign(rand-.5)*randperm(ceil(guard/2),1);
-      pLoc=loc{T};
-      nLoc=pLoc;
-      nLoc(linIdx)=nLoc(linIdx)+stepFoV;
-      
-      % check whether there are clashes with other clusters
-      if size(nLoc,2)>1
-        winDist=diff(sort(nLoc,2),1,2);
-        tolerance = 0; % no collissions are tolerable
-        invalid=mean(winDist(:)<guard)>tolerance;
-        if invalid
-          continue % do not shift FoV
-        end
-      end
-      
-      
-      locMask=true(size(pLoc));
-      locMask(linIdx)=false;
-      extractLoc=nLoc;
-      extractLoc(locMask)=nan;
-      % calculate new z_isum
-      extractCfg=[];
-      extractCfg.best_loc=extractLoc;
-      extractCfg.winLen=winLen;
-      extractCfg.numWindows=numWindows;
-      [s_New,z_New]=bg_swm_extract(extractCfg,dat);
-      
-      oldnanFlag=nanFlag;
-      nanFlag=any(isnan(z_dum(:)));
-      
-      if nanFlag
-        %check whether the shift of FoV is not too much. I.e. it should not
-        %move it from the data into nothingness
-        nanPercent= mean(isnan(s_New(:,:)));
+      % try 'tunneling' all clusters in a random order
+      for clustIdx=randperm(numClust)
+        linIdx=clust{clustIdx,T}.linIdx;
+        stepFoV=sign(rand-.5)*randperm(ceil(guard/2),1);
+        pLoc=loc{T};
+        nLoc=pLoc;
+        nLoc(linIdx)=nLoc(linIdx)+stepFoV;
         
-        %do not tolerate of 10% of winLen contains mostly nan's
-        toleranceLen=ceil(.1*winLen);
-        invalid=mean(nanPercent(1:toleranceLen))>.5 || mean(nanPercent(1:toleranceLen))>.5;
-        if invalid
-          nanFlag=oldnanFlag;
-          continue % do not shift FoV
+        % check whether there are clashes with other clusters
+        if size(nLoc,2)>1
+          winDist=diff(sort(nLoc,2),1,2);
+          tolerance = 0; % no collissions are tolerable
+          invalid=mean(winDist(:)<guard)>tolerance;
+          if invalid
+            continue % do not shift FoV
+          end
         end
-      end
-      
-      
-      N_c=clust{clustIdx,T}.numWindows;
-      pcost=clust{clustIdx,T}.tempCost;
-      
-      if zscoreFlag
-        z_dum=bsxfun(@times,kernel,z_New);
-        varianceFac=N_c;
-      else
-        z_dum=bsxfun(@times,kernel,s_New);
-        pZ=z_i{T}(linIdx,:);
-        varianceFac=N_c*nanmean(nanmean(z_dum.^2,2));
-      end
-      
-      
-      if nanFlag
-        nZ=z_dum;
-        nZ(isnan(nZ))=0;
-        noNanCountdum=sum(~isnan(z_dum(:,:)),1);
-        nanFac=N_c./noNanCountdum;
-        z_sumdum=sum(nZ(:,:));
-        ncost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
-      else
-        z_sumdum=sum(z_dum(:,:));
-        ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
-      end
-      
-      
-      
-      
-      
-      
-      % change in cost function
-      cVal=(pcost-ncost);
-      
-      
-      % Determine whether to accept or reject window shift
-      if cVal>0
-        accept=true;
-      else
-        if rand<exp(1/Tfac(T)*cVal)
+        
+        
+        locMask=true(size(pLoc));
+        locMask(linIdx)=false;
+        extractLoc=nLoc;
+        extractLoc(locMask)=nan;
+        % calculate new z_isum
+        extractCfg=[];
+        extractCfg.best_loc=extractLoc;
+        extractCfg.winLen=winLen;
+        extractCfg.numWindows=numWindows;
+        [s_New,z_New]=bg_swm_extract(extractCfg,dat);
+        
+        oldnanFlag=nanFlag;
+        nanFlag=any(isnan(z_dum(:)));
+        
+        if nanFlag
+          %check whether the shift of FoV is not too much. I.e. it should not
+          %move it from the data into nothingness
+          nanPercent= mean(isnan(s_New(:,:)));
+          
+          %do not tolerate of 10% of winLen contains mostly nan's
+          toleranceLen=ceil(.1*winLen);
+          invalid=mean(nanPercent(1:toleranceLen))>.5 || mean(nanPercent(1:toleranceLen))>.5;
+          if invalid
+            nanFlag=oldnanFlag;
+            continue % do not shift FoV
+          end
+        end
+        
+        
+        N_c=clust{clustIdx,T}.numWindows;
+        pcost=clust{clustIdx,T}.tempCost;
+        
+        if zscoreFlag
+          z_dum=bsxfun(@times,kernel,z_New);
+          varianceFac=N_c;
+        else
+          z_dum=bsxfun(@times,kernel,s_New);
+          pZ=z_i{T}(linIdx,:);
+          varianceFac=N_c*nanmean(nanmean(z_dum.^2,2));
+        end
+        
+        
+        if nanFlag
+          nZ=z_dum;
+          nZ(isnan(nZ))=0;
+          noNanCountdum=sum(~isnan(z_dum(:,:)),1);
+          nanFac=N_c./noNanCountdum;
+          z_sumdum=sum(nZ(:,:));
+          ncost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+        else
+          z_sumdum=sum(z_dum(:,:));
+          ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+        end
+        
+        
+        
+        
+        
+        
+        % change in cost function
+        cVal=(pcost-ncost);
+        
+        
+        % Determine whether to accept or reject window shift
+        if cVal>0
           accept=true;
         else
-          accept=false;
+          if rand<exp(1/Tfac(T)*cVal)
+            accept=true;
+          else
+            accept=false;
+          end
+        end
+        
+        if accept
+          cc(T)=0;
+          %update everything with new values
+          loc{T}=nLoc;
+          clust{clustIdx,T}.z_isum=z_sumdum;
+          clust{clustIdx,T}.varianceFac=varianceFac;
+          if nanFlag
+            clust{clustIdx,T}.noNanCount=noNanCountdum;
+          end
+          clust{clustIdx,T}.tempCost=ncost;
+          D(T)=D(T)-cVal;
+          z_i{T}(linIdx,:)=z_dum(:,:);
+          if costMin(T)>D(T)
+            if mincostTot>D(T);
+              mincostTot=D(T);
+              tloc=loc{T};
+            end
+            costMin(T)=D(T);
+            
+          end
+        else
+          cc(T)=cc(T)+1;
+          rejcount(1,T)=rejcount(1,T)+1;
+          nanFlag=oldnanFlag;
         end
       end
-      
-      if accept
-        cc(T)=0;
-        %update everything with new values
-        loc{T}=nLoc;
-        clust{clustIdx,T}.z_isum=z_sumdum;
-        clust{clustIdx,T}.varianceFac=varianceFac;
-        if nanFlag
-          clust{clustIdx,T}.noNanCount=noNanCountdum;
-        end
-        clust{clustIdx,T}.tempCost=ncost;
-        D(T)=D(T)-cVal;
-        z_i{T}(linIdx,:)=z_dum(:,:);
-        if costMin(T)>D(T)
-          if mincostTot>D(T);
-            mincostTot=D(T);
-            tloc=loc{T};
-          end
-          costMin(T)=D(T);
-          
-        end
-      else
-        cc(T)=cc(T)+1;
-        rejcount(1,T)=rejcount(1,T)+1;
-        nanFlag=oldnanFlag;
-      end      
     end
   end
   
@@ -1221,8 +1223,8 @@ while iter<numIt %&&  cc<cclim
           subplot(numel(plotselT),2,sub2ind([2 numel(plotselT)],2,TT))
           set(gca,'ColorOrder',lines(8))
           for n=1:min(numClust)
-          plot(datMean+datStd*clust{n,plotselT(TT)}.z_isum/clust{n,plotselT(TT)}.numWindows./kernel,'linewidth',2)
-          hold all
+            plot(datMean+datStd*clust{n,plotselT(TT)}.z_isum/clust{n,plotselT(TT)}.numWindows./kernel,'linewidth',2)
+            hold all
           end
           hold off
           title(['mean shapes (Tfac =' num2str(Tfac(plotselT(TT)),'%1.2e') ')'])
@@ -1283,9 +1285,9 @@ while iter<numIt %&&  cc<cclim
     cfg.best_z=cfg.best_s;
     cfg.costDistr=cell(1,numClust);
     for n=1:numClust
-    
-      locMask=true(size(tLoc));
-      locMask(tclust{n}.lIdx)=false;
+      
+      locMask=true(size(tloc));
+      locMask(tclust{n}.linIdx)=false;
       
       extractLoc=tloc;
       extractLoc(locMask)=nan;

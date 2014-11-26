@@ -187,18 +187,18 @@ end
 if manualLoc
   for k=1:numel(loc);
     trl=real(loc(k));
-    tidx=imag(loc(k));
-    if tidx+winLen+addLen<=size(dat,2) && tidx-addLen>0
-      s(k,:)=reshape(dat(trl,tidx-addLen:tidx+winLen+addLen-1,:),[],1);
-    elseif tidx-addLen>0
-      num=size(dat,2)-tidx+1;
-      s(k,1:num,:)=dat(trl,tidx:end,:);
-    elseif tidx+addLen+winLen<=size(dat,2)
-      num=1-(tidx-addLen);
-      s(k,num+1:end,:)=dat(trl,1:tidx+winLen+addLen-1,:);
+    tIdx=imag(loc(k));
+    if tIdx+winLen+addLen<=size(dat,2) && tIdx-addLen>0
+      s(k,:)=reshape(dat(trl,tIdx-addLen:tIdx+winLen+addLen-1,:),[],1);
+    elseif tIdx-addLen>0
+      num=size(dat,2)-tIdx+1;
+      s(k,1:num,:)=dat(trl,tIdx:end,:);
+    elseif tIdx+addLen+winLen<=size(dat,2)
+      num=1-(tIdx-addLen);
+      s(k,num+1:end,:)=dat(trl,1:tIdx+winLen+addLen-1,:);
       %     else
-      %       strt=tidx+addLen;
-      %       finish=size(dat,2)+tidx+addLen;
+      %       strt=tIdx+addLen;
+      %       finish=size(dat,2)+tIdx+addLen;
       %       s(k,strt+1:finish)=dat(trl,1:end);
     end
     if nargout>1
@@ -211,15 +211,15 @@ else
     for n=1:numel(s)
       for k=1:cfg.clust{n}.numWindows
         trl=cfg.clust{n}.trl(k);
-        tidx=cfg.clust{n}.tidx(k);
-        if loc(trl,tidx)+winLen+addLen<=size(dat,2) && loc(trl,tidx)-addLen>0
-          s{n}(k,:)=reshape(dat(trl,loc(trl,tidx)-addLen:loc(trl,tidx)+winLen+addLen-1,:),[],1);
-        elseif loc(trl,tidx)-addLen>0
-          num=size(dat,2)-loc(trl,tidx)+1;
-          s{n}(k,1:num,:)=reshape(dat(trl,loc(trl,tidx):end,:),[],1);
-        elseif loc(trl,tidx)+addLen<=size(dat,2)
-          num=1-(loc(trl,tidx)-addLen);
-          s{n}(k,num+1:end,:)=reshape(dat(trl,1:loc(trl,tidx)+winLen+addLen-1,:),[],1);
+        tIdx=cfg.clust{n}.tIdx(k);
+        if loc(trl,tIdx)+winLen+addLen<=size(dat,2) && loc(trl,tIdx)-addLen>0
+          s{n}(k,:)=reshape(dat(trl,loc(trl,tIdx)-addLen:loc(trl,tIdx)+winLen+addLen-1,:),[],1);
+        elseif loc(trl,tIdx)-addLen>0
+          num=size(dat,2)-loc(trl,tIdx)+1;
+          s{n}(k,1:num,:)=reshape(dat(trl,loc(trl,tIdx):end,:),[],1);
+        elseif loc(trl,tIdx)+addLen<=size(dat,2)
+          num=1-(loc(trl,tIdx)-addLen);
+          s{n}(k,num+1:end,:)=reshape(dat(trl,1:loc(trl,tIdx)+winLen+addLen-1,:),[],1);
         end
       end
       if nargout>1
@@ -228,18 +228,18 @@ else
     end
   else
     for k=1:cfg.numWindows
-      [trl, tidx]=ind2sub(size(loc),k);
-      if loc(trl,tidx)+winLen+addLen<=size(dat,2) && loc(trl,tidx)-addLen>0
-        s(k,:)=reshape(dat(trl,loc(trl,tidx)-addLen:loc(trl,tidx)+winLen+addLen-1,:),[],1);
-      elseif loc(trl,tidx)-addLen>0 % start of window fits
-        num=size(dat,2)-loc(trl,tidx)+1+addLen;
-        s(k,1:num,:)=dat(trl,loc(trl,tidx)-addLen:end,:);
-      elseif loc(trl,tidx)+addLen+winLen<=size(dat,2) %end of window fits
-        num=1-(loc(trl,tidx)-addLen);
-        s(k,num+1:end,:)=dat(trl,1:loc(trl,tidx)+winLen+addLen-1,:);
+      [trl, tIdx]=ind2sub(size(loc),k);
+      if loc(trl,tIdx)+winLen+addLen<=size(dat,2) && loc(trl,tIdx)-addLen>0
+        s(k,:)=reshape(dat(trl,loc(trl,tIdx)-addLen:loc(trl,tIdx)+winLen+addLen-1,:),[],1);
+      elseif loc(trl,tIdx)-addLen>0 % start of window fits
+        num=size(dat,2)-loc(trl,tIdx)+1+addLen;
+        s(k,1:num,:)=dat(trl,loc(trl,tIdx)-addLen:end,:);
+      elseif loc(trl,tIdx)+addLen+winLen<=size(dat,2) %end of window fits
+        num=1-(loc(trl,tIdx)-addLen);
+        s(k,num+1:end,:)=dat(trl,1:loc(trl,tIdx)+winLen+addLen-1,:);
         %     else
-        %       strt=loc(trl,tidx)+addLen;
-        %       finish=size(dat,2)+loc(trl,tidx)+addLen;
+        %       strt=loc(trl,tIdx)+addLen;
+        %       finish=size(dat,2)+loc(trl,tIdx)+addLen;
         %       s(k,strt+1:finish)=dat(trl,1:end);
       end
       if nargout>1
