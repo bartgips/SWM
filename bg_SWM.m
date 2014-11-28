@@ -153,6 +153,14 @@ validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
   'Fbp';'Fhp';'FhpFac';'Flp';'fName';'fs';'fullOutput';'guard';'kernel';...
   'konstant';'loc';'mask';'normalize';'nPT';'numClust';'numIt';'numIter';'numWindows';...
   'winPerTrial';'outputFile';'stepSz';'Tfac';'varName';'verbose';'winLen';'winLenFac';'zscore'};
+
+% fix case of inputs
+try
+  [~,cfg]=isfieldi(cfg,validInp);
+catch
+  error('cfg contains conflicting fields')
+end
+
 inpFields=fieldnames(cfg);
 
 if any(~ismember(inpFields,validInp))
@@ -591,9 +599,14 @@ else
   numClust=1;
 end
 
+validClustFields={'linIdx','trl','tIdx','numWindows','tempCost','z_isum',...
+  'varianceFac'};
 if isfield(cfg,'clust')
   clustInit=0;
   clust=cfg.clust;
+  for n=1:numel(clust)
+  [~,clust{n}]=isfieldi(clust{n},validClustFields);
+  end
 else
   clustInit=1;
 end
@@ -622,9 +635,9 @@ cfg.numWindows=numWindows;
 % determining Tswap and FoV tunneling intervals based on numWindows and
 % nPT.
 % Shift all windows 5 times on average before swapping
-TswapInterval=5*numWindows/nPT;
+TswapInterval=.5*numWindows/nPT;
 % Shift all windows 2 times on average before shifting FoV
-FoVShiftInterval=2*numWindows/numClust;
+FoVShiftInterval=.12*numWindows/numClust;
 
 % construct sample vectors
 z_i=cell(1,nPT);
@@ -637,27 +650,27 @@ reverseStr='';
 
 for T=1:nPT
   if T<2 || ~debug
-    for n=1:numWindows
-      [trldum idxDum]=ind2sub([numTrl,winPerTrial],n);
-      if maskFlag && isnan(loc{T}(trldum,idxDum))
-        z_i{T}(n,:)=nan;
-        nanFlag=1;
-      else
-        s_i=zeros([winLen,sz(3:end)]);
-        s_i(:)=dat(trldum,loc{T}(trldum, idxDum):loc{T}(trldum, idxDum)+winLen-1,:);
-        if zscoreFlag
-          z_i{T}(n,:)=reshape(bsxfun(@times,kernel,(s_i-nanmean(s_i(:))))./nanstd(s_i(:),1),[],1);
-        else
-          z_i{T}(n,:)=reshape(bsxfun(@times,kernel,s_i),[],1);
-        end
-      end
-      msg=sprintf('\n Temperature %d/%d \n Template %d/%d', [T nPT n numWindows]);
-      if verbose
-        fprintf([reverseStr, msg]);
-      end
-      reverseStr = repmat(sprintf('\b'), 1, length(msg));
       
-      
+    msg=sprintf('\n Temperature %d/%d', [T nPT]);
+    if verbose
+      fprintf([reverseStr, msg]);
+    end
+    reverseStr = repmat(sprintf('\b'), 1, length(msg));
+    cfgExtr=[];
+    cfgExtr.loc=loc{T};
+    cfgExtr.winLen=cfg.winLen;
+    cfgExtr.numWindows=cfg.numWindows;
+    
+    [s,z]=bg_swm_extract(cfgExtr,dat);
+    
+    if zscoreFlag
+      z_i{T}=z;
+    else
+      z_i{T}=s;
+    end
+    
+    if any(isnan(z_i{T}))
+      nanFlag=1;
     end
   else
     z_i{T}=z_i{1};
@@ -681,7 +694,7 @@ if clustInit
       else
         locIdxDum=locIdx;
       end
-      locIdxDum=locIdxDum(~isnan(loc{T}(locIdxDum)));
+      locIdxDum=locIdxDum(~isnan(loc{T}(locIdxDum))); % remove non-windows (masked data/ NaNs)
       clustID(locIdxDum,T)=clustIdx;
       [trldum tIdxDum]=ind2sub([numTrl, winPerTrial],locIdxDum);
       clust{clustIdx,T}.linIdx=locIdxDum;
@@ -1041,10 +1054,10 @@ while iter<numIt %&&  cc<cclim
         nLoc(linIdx)=nLoc(linIdx)+stepFoV;
         
         % check whether there are clashes with other clusters
-        if size(nLoc,2)>1
+        if size(nLoc,2)>1 && numClust>1
           winDist=diff(sort(nLoc,2),1,2);
           tolerance = 0; % no collissions are tolerable
-          invalid=mean(winDist(:)<guard)>tolerance;
+          invalid=nanmean(winDist(:)<guard)>tolerance;
           if invalid
             continue % do not shift FoV
           end
@@ -1057,13 +1070,17 @@ while iter<numIt %&&  cc<cclim
         extractLoc(locMask)=nan;
         % calculate new z_isum
         extractCfg=[];
-        extractCfg.best_loc=extractLoc;
+        extractCfg.loc=extractLoc;
         extractCfg.winLen=winLen;
         extractCfg.numWindows=numWindows;
-        [s_New,z_New]=bg_swm_extract(extractCfg,dat);
-        
+        [s_N,z_N]=bg_swm_extract(extractCfg,dat);
+        % cut out masked trials
+        s_New=nan([numel(linIdx),winLen,sz(3:end)]);
+        z_New=s_New;
+        s_New(:,:)=s_N(linIdx,:);
+        z_New(:,:)=z_N(linIdx,:);
         oldnanFlag=nanFlag;
-        nanFlag=any(isnan(z_dum(:)));
+        nanFlag=any(isnan(z_New(:)));
         
         if nanFlag
           %check whether the shift of FoV is not too much. I.e. it should not
@@ -1088,7 +1105,6 @@ while iter<numIt %&&  cc<cclim
           varianceFac=N_c;
         else
           z_dum=bsxfun(@times,kernel,s_New);
-          pZ=z_i{T}(linIdx,:);
           varianceFac=N_c*nanmean(nanmean(z_dum.^2,2));
         end
         
@@ -1105,16 +1121,12 @@ while iter<numIt %&&  cc<cclim
           ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         end
         
-        
-        
-        
-        
-        
+                
         % change in cost function
         cVal=(pcost-ncost);
         
         
-        % Determine whether to accept or reject window shift
+        % Determine whether to accept or reject FoV shift
         if cVal>0
           accept=true;
         else
@@ -1146,8 +1158,6 @@ while iter<numIt %&&  cc<cclim
             
           end
         else
-          cc(T)=cc(T)+1;
-          rejcount(1,T)=rejcount(1,T)+1;
           nanFlag=oldnanFlag;
         end
       end

@@ -14,9 +14,33 @@ function [s, z, cfg]=bg_swm_extract(cfg, dat)
 %
 % last edit: March 2014
 
+%% check validity of input fields
+validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
+  'costDistr';'costMin';'costFinal';'costTotal';...
+  'costTotal_end';'costTotal_undSamp';'debug';'dispPlot';'Fbs';...
+  'Fbp';'Fhp';'FhpFac';'Flp';'fName';'fs';'fullOutput';'guard';'kernel';...
+  'konstant';'loc';'mask';'normalize';'nPT';'numClust';'numIt';'numIter';'numWindows';...
+  'winPerTrial';'outputFile';'stepSz';'Tfac';'varName';'verbose';'winLen';'winLenFac';'zscore'};
+
+% fix case of inputs
+try
+  [~,cfg]=isfieldi(cfg,validInp);
+catch
+  error('cfg contains conflicting fields')
+end
+
+
+
+
+
 if nargin<2
-  dum=load(cfg.fName, cfg.varName);
-  eval(['dat=dum.' cfg.varName ';'])
+  try
+    dum=load(cfg.fName, cfg.varName);
+    eval(['dat=dum.' cfg.varName ';'])
+  catch
+    dum=load(cfg.fname, cfg.varname);
+    eval(['dat=dum.' cfg.varname ';'])
+  end
 else
   cfg.fName='function input';
   cfg.varName='N/A';
@@ -36,7 +60,9 @@ end
 nanSel=isnan(dat);
 nanFlag=any(nanSel(:));
 
-if any(isfield(cfg,{'Fbp','Fbs','Fhp','Flp'}))
+[val,cfgOut]=isfieldi(cfg,{'Fbp','Fbs','Fhp','Flp'});
+if any(val)
+  cfg=cfgOut;
   disp('Applying frequency filters...')
   %   filttype='fir';
   filttype='but';
@@ -143,12 +169,15 @@ if isfield(cfg,'best_clust')
   cfg.numclust=numel(cfg.clust);
 end
 
-
+validClustFields={'linIdx','trl','tIdx'};
 if isfield(cfg,'clust') && numel(cfg.clust)>1
   clustering=true;
   s=cell(1,cfg.numclust);
   for n=1:numel(s)
     s{n}=nan([cfg.clust{n}.numWindows,newLen,sz(3:end)]);
+  end
+  for n=1:numel(cfg.clust)
+    [~,cfg.clust{n}]=isfieldi(cfg.clust{n},validClustFields);
   end
 else
   clustering=false;
@@ -216,10 +245,14 @@ else
           s{n}(k,:)=reshape(dat(trl,loc(trl,tIdx)-addLen:loc(trl,tIdx)+winLen+addLen-1,:),[],1);
         elseif loc(trl,tIdx)-addLen>0
           num=size(dat,2)-loc(trl,tIdx)+1;
-          s{n}(k,1:num,:)=reshape(dat(trl,loc(trl,tIdx):end,:),[],1);
+          selVec=false(size(s{n}));
+          selVec(k,1:num,:)=true;
+          s{n}(selVec)=reshape(dat(trl,loc(trl,tIdx):end,:),[],1);
         elseif loc(trl,tIdx)+addLen<=size(dat,2)
           num=1-(loc(trl,tIdx)-addLen);
-          s{n}(k,num+1:end,:)=reshape(dat(trl,1:loc(trl,tIdx)+winLen+addLen-1,:),[],1);
+          selVec=false(size(s{n}));
+          selVec(k,num+1:end,:)=true;
+          s{n}(selVec)=reshape(dat(trl,1:loc(trl,tIdx)+winLen+addLen-1,:),[],1);
         end
       end
       if nargout>1
