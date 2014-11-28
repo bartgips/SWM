@@ -51,7 +51,7 @@ function [cfg]=bg_SWM(cfg, dat)
 %             (default = logspace(-3,1,.nPT))
 % .konstant:  Bolzmann constant used in determining whether two
 %             temperatures should be exchanged.
-%             (default = 1e3, higher values make switches more likely)
+%             (default = 100, higher values make switches more likely)
 % .mask:      A mask indicating "forbidden" parts of the data. I.e.
 %             immovable barriers where the sliding windows cannot go. Mask
 %             should be a logical the same size as the data. 0's mean no
@@ -91,6 +91,12 @@ function [cfg]=bg_SWM(cfg, dat)
 %             main component is 10 Hz and .FhpFac=.5 it will apply 5 Hz HP
 %             filtering.
 % .Flp:       Low-Pass cut-off frequency. use as above.
+% .FoVInterval: The average number of times all windows are moved, before
+%             the entire FoV is shifted. An FoV shift means shifting all
+%             windows within a cluster at once. This makes sure the mean
+%             shape is "centered" correctly inside the windows.
+%             (default = 2; i.e. FoV-shift is attempted every 2*numWindows
+%             iterations.)
 % .kernel:    A kernel that weights the cost function across the sliding
 %             dimension. E.g. you are searching for an evoked response that
 %             is more consistent at the beginning than at the end. Than a
@@ -150,7 +156,7 @@ function [cfg]=bg_SWM(cfg, dat)
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
   'costDistr';'costMin';'costFinal';'costTotal';...
   'costTotal_end';'costTotal_undSamp';'debug';'dispPlot';'Fbs';...
-  'Fbp';'Fhp';'FhpFac';'Flp';'fName';'fs';'fullOutput';'guard';'kernel';...
+  'Fbp';'Fhp';'FhpFac';'Flp';'fName';'fs';'FoVInterval';'fullOutput';'guard';'kernel';...
   'konstant';'loc';'mask';'normalize';'nPT';'numClust';'numIt';'numIter';'numWindows';...
   'winPerTrial';'outputFile';'stepSz';'Tfac';'varName';'verbose';'winLen';'winLenFac';'zscore'};
 
@@ -453,7 +459,7 @@ end
 if isfield(cfg,'konstant')
   konstant=cfg.konstant;
 else
-  konstant=1e3;
+  konstant=1e2;
   cfg.konstant=konstant;
 end
 
@@ -547,6 +553,7 @@ if isfield(cfg,'mask')
       for n=1:size(mask,1)
         for k=1:winPerTrial
           selDum=loc{T}(n,k):min(loc{T}(n,k)+min(winLen,guard)-1,size(dat,2));
+          selDum=selDum(selDum>0 & selDum <= sz(2));
           if ~isnan(loc{T}(n,k)) && any(mask(n,selDum))
             loc{T}(n,k)=nan; % remove locs by making them into NaNs (to keep matrix dimensions of loc)
           end
@@ -625,6 +632,13 @@ else
   cfg.fullOutput=fullOutput;
 end
 
+if isfield(cfg,'FoVInterval')
+  FoVInterval=cfg.FoVInterval;
+else
+  FoVInterval=2;
+  cfg.FoVInterval=FoVInterval;
+end
+
 %% Initialization
 
 % find the number of sample vectors/templates
@@ -634,10 +648,10 @@ cfg.numWindows=numWindows;
 
 % determining Tswap and FoV tunneling intervals based on numWindows and
 % nPT.
-% Shift all windows 5 times on average before swapping
-TswapInterval=.5*numWindows/nPT;
-% Shift all windows 2 times on average before shifting FoV
-FoVShiftInterval=.12*numWindows/numClust;
+% Shift all windows 5 times on average before attempting to swap Tfac
+TswapInterval=5*numWindows/nPT;
+% Shift all windows FoVInterval times on average before attempting to shift FoV
+FoVShiftInterval=FoVInterval*numWindows;
 
 % construct sample vectors
 z_i=cell(1,nPT);
@@ -756,6 +770,13 @@ end
 if verbose
   fprintf('\nDone!\n')
 end
+
+% sort the locs such that lowest temperatures have lowest cost
+[D,srtIdx]=sort(D);
+loc=loc(srtIdx);
+clust=clust(:,srtIdx);
+clustID=clustID(:,srtIdx);
+z_i=z_i(srtIdx);
 
 % draw plot window if requested
 if dispPlot
@@ -1073,7 +1094,19 @@ while iter<numIt %&&  cc<cclim
         extractCfg.loc=extractLoc;
         extractCfg.winLen=winLen;
         extractCfg.numWindows=numWindows;
+        
+        % check whether shift is not clashing with the mask
+        if maskFlag
+          [maskdum]=bg_swm_extract(extractCfg,mask);
+          maskPercent= mean(maskdum(:,:));
+          tolerance=.1; % up to 10% mask is allowed
+          if  any(maskPercent>tolerance)
+            continue % do not shift FoV
+          end
+        end
+        
         [s_N,z_N]=bg_swm_extract(extractCfg,dat);
+        
         % cut out masked trials
         s_New=nan([numel(linIdx),winLen,sz(3:end)]);
         z_New=s_New;
@@ -1095,6 +1128,7 @@ while iter<numIt %&&  cc<cclim
             continue % do not shift FoV
           end
         end
+        
         
         
         N_c=clust{clustIdx,T}.numWindows;

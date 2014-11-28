@@ -34,13 +34,8 @@ end
 
 
 if nargin<2
-  try
-    dum=load(cfg.fName, cfg.varName);
-    eval(['dat=dum.' cfg.varName ';'])
-  catch
-    dum=load(cfg.fname, cfg.varname);
-    eval(['dat=dum.' cfg.varname ';'])
-  end
+  dum=load(cfg.fName, cfg.varName);
+  eval(['dat=dum.' cfg.varName ';'])
 else
   cfg.fName='function input';
   cfg.varName='N/A';
