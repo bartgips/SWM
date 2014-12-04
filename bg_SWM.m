@@ -494,6 +494,15 @@ else
   winPerTrial=0;
 end
 
+%read mask
+if isfield(cfg,'mask')
+  maskFlag=true;
+  mask=cfg.mask;
+else
+  mask=[];
+end
+
+
 % initialize/read window locations
 if isfield(cfg,'loc')
   loc=cfg.loc;
@@ -516,9 +525,9 @@ else
   for n=locStart:nPT
     if ~debug || n<2
       if winPerTrial
-        [loc{n}, winPerTrial, stepSzdum]=initloc(guard,winLen,dat,winPerTrial);
+        [loc{n}, winPerTrial, stepSzdum]=initloc(guard,winLen,dat,winPerTrial,mask);
       else
-        [loc{n}, winPerTrial, stepSzdum]=initloc(guard,winLen,dat);
+        [loc{n}, winPerTrial, stepSzdum]=initloc(guard,winLen,dat,[],mask);
       end
     else
       loc{n}=loc{1};
@@ -541,9 +550,7 @@ else
 end
 
 % prune window locations if mask is present
-if isfield(cfg,'mask')
-  maskFlag=true;
-  mask=cfg.mask;
+if maskFlag
   winPerTrialNew=0;
   nanMask=zeros(size(mask));
   nanMask(logical(mask))=nan;
@@ -1360,7 +1367,7 @@ while iter<numIt %&&  cc<cclim
     cfg=orderfields(cfg,fieldNameIdx);
     
     if ~fullOutput
-      cleanFields={'cc','clust', 'costFinal', 'costDistr', 'costCoM', 'cm','costCoM_i'};
+      cleanFields={'cc', 'costFinal', 'costDistr', 'costCoM', 'cm','costCoM_i'};
       for nn=1:numel(cleanFields)
         try
           cfg=rmfield(cfg,cleanFields{nn});
@@ -1402,17 +1409,30 @@ if numel(n)<2
 end
 [~,p] = max(rand(n(1),n(2)));
 
-function [loc, winPerTrial, stepSz]=initloc(guard,winLen,data,winPerTrial)
+function [loc, winPerTrial, stepSz]=initloc(guard,winLen,data,winPerTrial,mask)
 % initialize window locations
 len=size(data);
 maxWin= floor((len(2)-winLen+1)/(guard+1));
-if nargin<4
+if nargin<4 || isempty(winPerTrial)
   winPerTrial=maxWin;
 else
   if winPerTrial>maxWin
     winPerTrial=maxWin;
   end
 end
+
+if nargin<5 || isempty(mask)
+  maskFlag=false;
+else
+  maskFlag=true;
+end
+
+if maskFlag % cut off leading and trailing mask
+  startIdx=find(mean(mask)<.1,1,'first');
+  endIdx=find(mean(mask)<.1,1,'last');
+  len(2)=endIdx-startIdx+1;
+end
+  
 
 loc=nan(size(data,1),winPerTrial);
 
@@ -1421,10 +1441,14 @@ guards=[0:winPerTrial-1]*guard;
 
 for n=1:len(1)
   empty=sort(randperm(nEmptySpace,winPerTrial));
-  winStarts=empty+guards;
-  
-  loc(n,:)=sort(winStarts);
+  winStarts=empty+guards;  
+  loc(n,:)=sort(winStarts);  
 end
+
+if maskFlag
+  loc=loc+startIdx-1;
+end
+
 stepSz=ceil(nEmptySpace/winPerTrial);
 
 function D_i=cost_i(z_s)
