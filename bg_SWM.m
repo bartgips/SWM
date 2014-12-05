@@ -619,7 +619,7 @@ if isfield(cfg,'clust')
   clustInit=0;
   clust=cfg.clust;
   for n=1:numel(clust)
-  [~,clust{n}]=isfieldi(clust{n},validClustFields);
+    [~,clust{n}]=isfieldi(clust{n},validClustFields);
   end
 else
   clustInit=1;
@@ -642,7 +642,7 @@ end
 if isfield(cfg,'FoVInterval')
   FoVInterval=cfg.FoVInterval;
 else
-  FoVInterval=2;
+  FoVInterval=1;
   cfg.FoVInterval=FoVInterval;
 end
 
@@ -1105,7 +1105,7 @@ while iter<numIt %&&  cc<cclim
         % check whether shift is not clashing with the mask
         if maskFlag
           [maskdum]=bg_swm_extract(extractCfg,mask);
-          maskPercent= mean(maskdum(:,:));
+          maskPercent= nanmean(maskdum(:,:));
           tolerance=.1; % up to 10% mask is allowed
           if  any(maskPercent>tolerance)
             continue % do not shift FoV
@@ -1125,11 +1125,12 @@ while iter<numIt %&&  cc<cclim
         if nanFlag
           %check whether the shift of FoV is not too much. I.e. it should not
           %move it from the data into nothingness
-          nanPercent= mean(isnan(s_New(:,:)));
+          nanPercent= sort(mean(isnan(s_New(:,:))),'descend');
           
-          %do not tolerate of 10% of winLen contains mostly nan's
-          toleranceLen=ceil(.1*winLen);
-          invalid=mean(nanPercent(1:toleranceLen))>.5 || mean(nanPercent(1:toleranceLen))>.5;
+          %do not tolerate when 25% of windows contain at least 5% NaNs
+          %(at the same positions, indicating SWM is walking away from the data)
+          toleranceLen=ceil(.05*numel(nanPercent));
+          invalid=mean(nanPercent(1:toleranceLen))>.25;
           if invalid
             nanFlag=oldnanFlag;
             continue % do not shift FoV
