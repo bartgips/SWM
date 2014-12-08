@@ -56,9 +56,9 @@ if isfield(cfg,'best_clust')
 elseif ~isfield(cfg,'clust')
   cfg.numClust=1;
   cfg.clust{1}.linIdx=1:numel(loc);
-  [trl, tidx]=ind2sub(size(loc),1:numel(loc));
+  [trl, tIdx]=ind2sub(size(loc),1:numel(loc));
   cfg.clust{1}.trl=trl;
-  cfg.clust{1}.tidx=tidx;
+  cfg.clust{1}.tIdx=tIdx;
 end
 
 if isfield(cfg,'derivative')
@@ -121,16 +121,16 @@ for n=1:numgroups
   for kk=1:cfg.numClust
     sel=find((cfg.clust{kk}.trl<(n*groupsz+1) & cfg.clust{kk}.trl>(n-1)*groupsz));
     trl=cfg.clust{kk}.trl(sel)-(n-1)*groupsz;
-    tidx=cfg.clust{kk}.tidx(sel);
+    tIdx=cfg.clust{kk}.tIdx(sel);
     
     % remove NaN locs
-    lidxdum=sub2ind(size(loc),trl+(n-1)*groupsz,tidx);
+    lidxdum=sub2ind(size(loc),trl+(n-1)*groupsz,tIdx);
     nansel=isnan(loc(lidxdum));
     sel=sel(~nansel);
     trl=cfg.clust{kk}.trl(sel)-(n-1)*groupsz;
-    tidx=cfg.clust{kk}.tidx(sel);
+    tIdx=cfg.clust{kk}.tIdx(sel);
     for k=1:numel(sel);
-      strt=loc(trl(k)+(n-1)*groupsz,tidx(k))-addLen;
+      strt=loc(trl(k)+(n-1)*groupsz,tIdx(k))-addLen;
       fin=strt+winLen-1;
       if strt<1
         num=1-strt;

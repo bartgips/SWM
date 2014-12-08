@@ -500,6 +500,7 @@ if isfield(cfg,'mask')
   mask=cfg.mask;
 else
   mask=[];
+  maskFlag=false;
 end
 
 
