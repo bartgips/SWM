@@ -865,7 +865,10 @@ while iter<numIt %&&  cc<cclim
       while ~locChange && loopcount<11 %find a possible step; Brute force for maximally 10 times
         dir=((rand>0.5)-0.5)*2*round(stepSz*rand);
         nLoc=pLoc+dir;
-        locChange= nLoc>0 && size(dat,2)-nLoc>=winLen;
+        % preferably have it within data border, if not, at least move towards border
+        leftLim= nLoc > 0 || nLoc > pLoc;
+        rightLim= size(dat,2)-nLoc>=winLen  || nLoc<pLoc;
+        locChange= leftLim && rightLim;
         
         if locChange && winPerTrial>1
           %check guard:
@@ -893,32 +896,41 @@ while iter<numIt %&&  cc<cclim
         N_c=clust{clustIdx,T}.numWindows;
         %       pcost=D(T);
         pcost=clust{clustIdx,T}.tempCost;
-        s_dum=zeros(winLen,sz(3:end));
-        s_dum(:)=dat(trl,nLoc:nLoc+winLen-1,:);
+        s_dum=nan(winLen,sz(3:end));
+        if nLoc <1
+          selVec=1:nLoc+winLen-1;
+          selVecS=2-nLoc:winLen;
+        elseif (nLoc + winLen -1)>sz(2)
+          selVec=nLoc:sz(2);
+          selVecS=1:numel(selVec);
+        else % no problems
+          selVec=nLoc:nLoc+winLen-1;
+          selVecS=1:winLen;
+        end
+        s_dum(selVecS,:)=dat(trl,selVec,:);
         
         if zscoreFlag
-          z_dum=bsxfun(@times,kernel,(s_dum-nanmean(s_dum(:)))/nanstd(s_dum(:),1));
+          nZ=bsxfun(@times,kernel,(s_dum-nanmean(s_dum(:)))/nanstd(s_dum(:),1));
           varianceFac=N_c;
         else
-          z_dum=bsxfun(@times,kernel,s_dum);
+          nZ=bsxfun(@times,kernel,s_dum);
           varianceFac=clust{clustIdx,T}.varianceFac;
           pZ=z_i{T}(linIdx,:);
           varianceFac=varianceFac-nanmean(pZ.^2)+nanmean(z_dum(:).^2);
         end
         
         
-        
+        pZ=z_i{T}(linIdx,:);
         if nanFlag
-          pZ=z_i{T}(linIdx,:);
+          noNanCountdum=clust{clustIdx,T}.noNanCount-isnan(pZ)+isnan(nZ(:)');
           pZ(isnan(pZ))=0;
-          nZ=z_dum;
           nZ(isnan(nZ))=0;
           z_sumdum=clust{clustIdx,T}.z_isum-pZ+nZ(:)';
-          noNanCountdum=clust{clustIdx,T}.noNanCount-isnan(z_i{T}(linIdx,:))+isnan(z_dum(:)');
+          
           nanFac=N_c./noNanCountdum;
           ncost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         else
-          z_sumdum=clust{clustIdx,T}.z_isum-z_i{T}(linIdx,:)+z_dum(:)';
+          z_sumdum=clust{clustIdx,T}.z_isum-pZ+nZ(:)';
           ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
         end
         
@@ -952,7 +964,7 @@ while iter<numIt %&&  cc<cclim
         end
         clust{clustIdx,T}.tempCost=ncost;
         D(T)=D(T)-cVal;
-        z_i{T}(linIdx,:)=z_dum(:);
+        z_i{T}(linIdx,:)=nZ(:);
         if costMin(T)>D(T)
           if mincostTot>D(T);
             mincostTot=D(T);
@@ -1128,7 +1140,7 @@ while iter<numIt %&&  cc<cclim
           %move it from the data into nothingness
           nanPercent= sort(mean(isnan(s_New(:,:))),'descend');
           
-          %do not tolerate when 25% of windows contain at least 5% NaNs
+          %do not tolerate when 5% of windows contain at least 25% NaNs
           %(at the same positions, indicating SWM is walking away from the data)
           toleranceLen=ceil(.05*numel(nanPercent));
           invalid=mean(nanPercent(1:toleranceLen))>.25;
@@ -1151,18 +1163,17 @@ while iter<numIt %&&  cc<cclim
           varianceFac=N_c*nanmean(nanmean(z_dum.^2,2));
         end
         
-        
-        if nanFlag
-          nZ=z_dum;
+        nZ=z_dum;
+        z_sumdum=sum(nZ(:,:));
+        if nanFlag          
           nZ(isnan(nZ))=0;
           noNanCountdum=sum(~isnan(z_dum(:,:)),1);
           nanFac=N_c./noNanCountdum;
           z_sumdum=sum(nZ(:,:));
-          ncost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
-        else
-          z_sumdum=sum(z_dum(:,:));
-          ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+          z_sumdum=z_sumdum.*nanFac;
         end
+        ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+    
         
                 
         % change in cost function
