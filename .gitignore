@@ -8,6 +8,8 @@ compiled/
 *.pdf
 *.png
 *.mat
+*.e*
+*.o*
 /figs/stats
 Thumbs.db
 

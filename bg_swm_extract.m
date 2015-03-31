@@ -251,7 +251,7 @@ else
         end
       end
       if nargout>1
-        z{n}=zscore(s{n},1,2);
+        z{n}=zscore(s{n},0,2);
       end
     end
   else

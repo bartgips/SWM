@@ -744,7 +744,7 @@ if isfield(cfg,'best_clust')
   end
 end
 
-% initinalize the cost function
+% initialize the cost function
 if verbose
   fprintf('\nInitializing cost matrices...')
 end
@@ -1104,11 +1104,15 @@ while iter<numIt %&&  cc<cclim
           end
         end
         
-        
         locMask=true(size(pLoc));
         locMask(linIdx)=false;
         extractLoc=nLoc;
         extractLoc(locMask)=nan;
+        
+        % do NOT move windows outside of the data
+        sel=extractLoc<1 | extractLoc+winLen-1>sz(2);
+        extractLoc(sel)=pLoc(sel);
+        
         % calculate new z_isum
         extractCfg=[];
         extractCfg.loc=extractLoc;
@@ -1134,21 +1138,21 @@ while iter<numIt %&&  cc<cclim
         z_New(:,:)=z_N(linIdx,:);
         oldnanFlag=nanFlag;
         nanFlag=any(isnan(z_New(:)));
-        
-        if nanFlag
-          %check whether the shift of FoV is not too much. I.e. it should not
-          %move it from the data into nothingness
-          nanPercent= sort(mean(isnan(s_New(:,:))),'descend');
-          
-          %do not tolerate when 5% of windows contain at least 25% NaNs
-          %(at the same positions, indicating SWM is walking away from the data)
-          toleranceLen=ceil(.05*numel(nanPercent));
-          invalid=mean(nanPercent(1:toleranceLen))>.25;
-          if invalid
-            nanFlag=oldnanFlag;
-            continue % do not shift FoV
-          end
-        end
+%         
+%         if nanFlag
+%           %check whether the shift of FoV is not too much. I.e. it should not
+%           %move it from the data into nothingness
+%           nanPercent= sort(mean(isnan(s_New(:,:))),'descend');
+%           
+%           %do not tolerate when 5% of windows contain at least 25% NaNs
+%           %(at the same positions, indicating SWM is walking away from the data)
+%           toleranceLen=ceil(.05*numel(nanPercent));
+%           invalid=mean(nanPercent(1:toleranceLen))>.25;
+%           if invalid
+%             nanFlag=oldnanFlag;
+%             continue % do not shift FoV
+%           end
+%         end
         
         
         
@@ -1228,7 +1232,7 @@ while iter<numIt %&&  cc<cclim
     fprintf([reverseStr, msg]);
   end
   reverseStr = repmat(sprintf('\b'), 1, length(msg));
-  
+    
   if dispPlot && iterPlot>50 % if requested; plot intermediate progress
     iterPlot=0;
     current_figure(hfig)
