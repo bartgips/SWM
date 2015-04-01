@@ -766,9 +766,9 @@ for T=1:nPT
     if nanFlag
       % correct for NaNs
       nanFac=N_c./clust{n,T}.noNanCount;
-      clust{n,T}.tempCost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_isum)*z_isum.')/(N*(N_c-1));
+      clust{n,T}.tempCost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_isum)*z_isum.')/((N-1)*(N_c-1));
     else
-      clust{n,T}.tempCost=(varianceFac*N_c/(N_c-1))-(z_isum*z_isum.')/(N*(N_c-1));
+      clust{n,T}.tempCost=(varianceFac*N_c/(N_c-1))-(z_isum*z_isum.')/((N-1)*(N_c-1));
     end
     
     D(T)=D(T)+clust{n,T}.tempCost;
@@ -928,10 +928,10 @@ while iter<numIt %&&  cc<cclim
           z_sumdum=clust{clustIdx,T}.z_isum-pZ+nZ(:)';
           
           nanFac=N_c./noNanCountdum;
-          ncost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+          ncost=(varianceFac*N_c/(N_c-1))-((nanFac.^2.*z_sumdum)*z_sumdum.')/((N-1)*(N_c-1));
         else
           z_sumdum=clust{clustIdx,T}.z_isum-pZ+nZ(:)';
-          ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+          ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/((N-1)*(N_c-1));
         end
         
         
@@ -1010,7 +1010,7 @@ while iter<numIt %&&  cc<cclim
         varianceFac=varianceFac+[-nanmean(cZ.^2) nanmean(cZ.^2)];
       end
       
-      ncost=((varianceFac.*N_c./(N_c-1))-z2dum./(winLen*prod(sz(3:end))*(N_c-1)));
+      ncost=((varianceFac.*N_c./(N_c-1))-z2dum./((N-1)*(N_c-1)));
       cVal=pcost-sum(ncost);
       
       %accept/reject cluster change
@@ -1176,7 +1176,7 @@ while iter<numIt %&&  cc<cclim
           z_sumdum=sum(nZ(:,:));
           z_sumdum=z_sumdum.*nanFac;
         end
-        ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/(winLen*prod(sz(3:end))*(N_c-1));
+        ncost=(varianceFac*N_c/(N_c-1))-(z_sumdum*z_sumdum.')/((N-1)*(N_c-1));
     
         
                 
