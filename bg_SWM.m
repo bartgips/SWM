@@ -883,6 +883,7 @@ while iter<numIt %&&  cc<cclim
         % also check for distance from mask
         if locChange && maskFlag
           selDum=nLoc:min(nLoc+min(winLen,guard)-1,size(dat,2));
+          selDum=selDum(selDum>0);
           maskDum=sum(mask(trl,selDum))<1;
           locChange=maskDum;
         end
@@ -1446,7 +1447,7 @@ end
 
 if maskFlag % cut off leading and trailing mask
   startIdx=find(mean(mask)<.1,1,'first');
-  endIdx=find(mean(mask)<.1,1,'last');
+  endIdx=find(mean(mean(mask(:,:,:)),3)<.1,1,'last');
   len(2)=endIdx-startIdx+1;
 end
   
