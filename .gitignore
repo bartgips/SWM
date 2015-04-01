@@ -5,6 +5,7 @@ version*
 compiled/
 *gitignore
 *.eps
+*.ai
 *.pdf
 *.png
 *.mat
