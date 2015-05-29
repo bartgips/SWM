@@ -2,13 +2,17 @@ function cfg=bg_SWM_fourier(cfg,dat)
 % cfg=bg_SWM_fourier(cfg,dat)
 % 
 % emulates the functionality of bg_SWM.
-% instead of the rigorous SMW algorithm, it uses band-pass filtering to
+% instead of the rigorous SWM algorithm, it uses band-pass filtering to
 % detect 0-crossings in the phase evolution.
 % i.e. it centres windows on cosine peaks.
 
 if nargin<2
-  dum=load(cfg.fname, cfg.varname);
-  eval(['dat=dum.' cfg.varname ';'])
+  dum=load(cfg.fName, cfg.varName);
+  eval(['dat=dum.' cfg.varName ';'])
+end
+
+if iscolumn(dat);
+  dat=dat.';
 end
 
 if isfield(cfg,'fbp')
@@ -44,8 +48,8 @@ else
   cfg.type=type;
 end
 
-if isfield(cfg,'numWin')
-  cfg.maxlocs=cfg.numWin;
+if isfield(cfg,'winPerTrial')
+  cfg.maxlocs=cfg.winPerTrial;
 end
 
 
@@ -117,18 +121,18 @@ if isfield(cfg,'maxlocs') %only extract highest power
   end
   cfg.best_loc=cfg.best_loc-floor(winLen/2);
   cfg.best_loc=[cfg.best_loc ones(numtrials,1)*size(dat,2)];
-  cfg.bestclust{1}.numTemplates=numtrials*maxlocs;
+  cfg.bestclust{1}.numWindows=numtrials*maxlocs;
   
 else
   cfg.best_loc=loc;
   cfg.best_loc=cfg.best_loc-floor(winLen/2);
-  cfg.bestclust{1}.numTemplates=numel(loc)-size(loc,1);
+  cfg.bestclust{1}.numWindows=numel(loc)-size(loc,1);
 end
 
 cfg.bestclust{1}.trl=repmat([1:numtrials]',1,size(cfg.best_loc,2)-1);
 cfg.bestclust{1}.tidx=repmat(1:size(cfg.best_loc,2)-1,size(cfg.best_loc,1),1);
-cfg.numTemplates=numtrials*(size(cfg.best_loc,2)-1);
-cfg.bestclust{1}.linidx=1:cfg.numTemplates;
+cfg.numWindows=numtrials*(size(cfg.best_loc,2)-1);
+cfg.bestclust{1}.linidx=1:cfg.numWindows;
 
 
     
