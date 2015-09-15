@@ -15,10 +15,10 @@ if iscolumn(dat);
   dat=dat.';
 end
 
-if isfield(cfg,'fbp')
-  fbp=cfg.fbp;
+if isfield(cfg,'foi')
+  foi=cfg.foi;
 else
-  error('no frequency given for bp filtering (cfg.fbp)')
+  error('no frequency given for bp filtering (cfg.foi)')
 end
 
 if isfield(cfg,'bw')
@@ -37,7 +37,7 @@ end
 if isfield(cfg,'winLen')
   winLen=cfg.winLen;
 else
-  winLen=fs*1/fbp;
+  winLen=fs*1/foi;
   cfg.winLen=winLen;
 end
 
@@ -52,6 +52,15 @@ if isfield(cfg,'winPerTrial')
   cfg.maxlocs=cfg.winPerTrial;
 end
 
+if isfield(cfg,'MEGflag')
+  % MEG-signals have "arbritrary" polarity, therefore they can be rectified 
+  % by flipping phases 180 degrees if they are in antiphase with the 
+  % strongest signal.
+  MEGflag=cfg.MEGflag;
+else
+  MEGflag=false;
+end
+
 
 switch type
   case 'gauss'
@@ -61,14 +70,14 @@ switch type
     t = -5*st:dt:5*st;
     A=1/(sqrt(2*pi)*st)*2/fs;
     filtkern = A*(exp(-t.^2/(2*st^2)))';
-    filtkern = filtkern .* exp(-1i*t'*2*pi*fbp);
-    analytic=conv2(dat,filtkern','same');
+    filtkern = filtkern .* exp(-1i*t'*2*pi*foi);
+    analytic=convn(dat,filtkern','same');
   case 'butt'
-    filtdat=ft_preproc_bandpassfilter(dat,fs,[-bw bw]+fbp);
+    filtdat=ft_preproc_bandpassfilter(dat,fs,[-bw bw]+foi);
     analytic=hilbert(filtdat.').';
   case 'brick'
-    if numel(fbp)~=2
-      error('cfg.fbp should contain 2 frequencies when using brickwall filter')
+    if numel(foi)~=2
+      error('cfg.foi should contain 2 frequencies when using brickwall filter')
     end
     % brickwall complex BP filters
     L=size(dat,2);
@@ -79,27 +88,36 @@ switch type
       f=[0:df:fs/2-df -fs/2:df:0-df]';
     end    
     filtFT=zeros(numel(f),1);
-    filtFT(f>=fbp(1) & f<=fbp(2))=1;
+    filtFT(f>=foi(1) & f<=foi(2))=1;
     analytic=ifft(bsxfun(@times,fft(dat.'),filtFT)).';
 end
 
 
+
+if MEGflag && ~ismatrix(analytic)
+  %find strongest signal (most power)
+  [~,mainSens]=max(squeeze(sum(sum(abs(analytic).^2,2))));
+  cohDum=bsxfun(@times,analytic,conj(analytic(:,:,mainSens)));
+  cohDum=squeeze(sum(sum(cohDum.*abs(cohDum)),2)); % weight by power
+  signFlip=sign(real(cohDum));
+  
+  analytic(:,:,:)=bsxfun(@times,analytic(:,:,:),permute(signFlip,[3 2 1]));
+end
+
+if ~ismatrix(analytic)
+  analytic=sum(analytic(:,:,:).*abs(analytic(:,:,:)),3); %weight by power, rather than amplitude
+end
  
-%finding alpha peaks;
-ph_tot=unwrap(angle(analytic).');
-numlocs=max(floor(max(ph_tot)/(2*pi)));
+%finding oscillation peaks;
+ph_tot=unwrap(permute(angle(analytic),[2 1 3:ndims(analytic)]));
+numlocs=max(floor(max(ph_tot(:,:))/(2*pi)));
 numtrials=size(ph_tot,2);
 loc=nan(numtrials,numlocs);
 
 
 for trialsel=1:numtrials;
-  ph=ph_tot(:,trialsel);
+  ph=squeeze(ph_tot(:,trialsel));
   peaks=(2*pi):(2*pi):max(ph);
-  %   if min(ph)<0
-  %     peaks=[0 peaks];
-  %   end
-  peaktims=nan(1,numel(peaks));
-  peaktimidx=nan(1,numel(peaks));
   for peakidx=1:numel(peaks)
     [~, loc(trialsel,peakidx)]=min(abs(ph-peaks(peakidx)));
   end
