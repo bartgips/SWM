@@ -1430,7 +1430,7 @@ end
 function [loc, winPerTrial, stepSz]=initloc(guard,winLen,data,winPerTrial,mask)
 % initialize window locations
 len=size(data);
-maxWin= floor((len(2)-winLen+1)/(guard+1));
+maxWin= floor((len(2)-winLen+1)/(guard+1)*.75); % 75% data coverage; (100% would be too dense, no movement for the windows)
 if nargin<4 || isempty(winPerTrial)
   winPerTrial=maxWin;
 else

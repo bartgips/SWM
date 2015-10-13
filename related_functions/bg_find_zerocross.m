@@ -13,25 +13,10 @@ function [idx, val]=bg_find_zerocross(x)
 
 if ~isvector(x)
   error('input should be a vector')
-elseif isrow(x)
-  x=x.';
 end
 
-valSign=sign(x(1));
-idx=[];
-lastZero=0;
-done=0;
-while ~done
-  idxdum=[find(sign(x(lastZero+1:end))==-valSign,1)];
-  if isempty(idxdum)
-    done=1;
-  else  
-    idx=[idx idxdum+lastZero];
-    lastZero=idxdum+lastZero;
-    valSign=-valSign;
-  end
-end
+idx=find((sign(x(1:end-1)).*sign(x(2:end)))<0)+1;
 
-idx=[1 idx numel(x)];
+idx=[1; idx; numel(x)];
 
 val=x(idx);

@@ -1,4 +1,5 @@
 function [val, xOut]=isfieldi(x,fieldName)
+% [val, xOut]=isfieldi(x,fieldName)
 % checks wheter structure x contains field fieldName independent of the
 % case (lower or upper). If x contains such a field, but the spelling is
 % off, the output x will have it's field renamed
