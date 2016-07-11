@@ -1,1 +1,21 @@
-Mon Jun 30 13:47:35 CEST 2014: project SWM initalized by bargip (Bart Gips)
+Sliding Window Matching algorithm for finding reoccurring patterns in time series 
+Not published yet.
+Manuscript.pdf contains the scientific article explaining its use
+
+Code all runs in MATLAB
+
+requires fieldTrip toolbox for filtering of signals
+http://www.fieldtriptoolbox.org/
+
+main functions: 
+bg_SWM.m: apply SWM
+bg_swm_extract.m: extract motifs from the data after bg_SWM.m has finished
+
+subdirectories are related to generating figures and data for paper:
+i.e.:
+./related_functions
+./scripts
+./figs
+
+
+

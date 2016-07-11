@@ -3,15 +3,19 @@
 *~*
 version*
 compiled/
-*gitignore
 *.eps
 *.ai
-*.pdf
+#*.pdf
 *.png
 *.mat
 *.e*
 *.o*
 /figs/stats
+./figs/*.pdf
+/figs/*/*.pdf
+.gitig*
 Thumbs.db
 
 path_add.txt
+
+
