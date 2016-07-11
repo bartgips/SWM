@@ -64,7 +64,7 @@ function [cfg]=bg_SWM(cfg, dat)
 % .zscore:    Calculate the cost function based on z-scored windows or not.
 %             This is usefule when dealing with shapes of varying
 %             amplitude.
-%             (default = 0)
+%             (default = 1)
 % .normalize: Normalize data before finding shape by means of z-scoring
 %             (only really affects magnitude of values of cost function)
 %
@@ -152,6 +152,7 @@ function [cfg]=bg_SWM(cfg, dat)
 %
 % Bart Gips 2014
 
+compatibilityFlag=verLessThan('matlab', '8.4');
 %% check validity of input fields
 validInp={'best_s';'best_z';'best_clust';'best_clustID';'best_loc';'clust';...
   'costDistr';'costMin';'costFinal';'costTotal';...
@@ -173,8 +174,6 @@ if any(~ismember(inpFields,validInp))
   badInp=inpFields(~ismember(inpFields,validInp));
   warning(sprintf(['Some fields in input cfg structure are invalid and are ignored:\n' repmat('  .%s\n',1,numel(badInp))],badInp{:}));
 end
-
-
 
 %% loading data
 % load data from file instead of from function input
@@ -1249,7 +1248,9 @@ while iter<numIt %&&  cc<cclim
       else
         hleg=legend(num2str(flipud(Tfac(:)),'%1.2e'),'location','southwest');
       end
-      set(get(hleg,'title'),'string','Tfac')
+      if compatibilityFlag
+        set(get(hleg,'title'),'string','Tfac')
+      end
       plotLegend=0;
     end
     
@@ -1280,7 +1281,9 @@ while iter<numIt %&&  cc<cclim
         end
         hold off
         hleg2=legend(num2str(Tfac(plotselT)','%1.2e'));
-        set(get(hleg2,'title'),'string','Tfac')
+        if compatibilityFlag
+          set(get(hleg2,'title'),'string','Tfac')
+        end
         title('mean shape (lowest temperatures)')
         if zscoreFlag
           ylabel('z-score')
