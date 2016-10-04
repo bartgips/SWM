@@ -1,5 +1,5 @@
-function [stats]=bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, numExtr, fignum)
-% stats = bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, numExtr, fignum)
+function [stats]=bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, numExtr, fignum, smoothflag)
+% stats = bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, numExtr, fignum, smoothflag)
 %
 % Uses interpolation together with detection of extrema to calculate skweness index based on T_up/T_down ratio.
 % Like other bootstrap functions estimates confidence interval of skewness of noisy shapes contained in
@@ -63,6 +63,10 @@ function [stats]=bg_bootstrap_interpolate(shapeMat, numIt, frac, verbose, numExt
 % .CI:    Similar to .p_t, but now the 95% confidence interval. If this
 %         contains zero, H0 cannot be rejected
 
+if nargin<7
+  smoothflag=0;
+end
+
 if nargin<3 || isempty(frac)
   frac=1;
 end
@@ -99,18 +103,26 @@ sampsz=round(frac*numTemp);
 nfft=2^nextpow2(tempLen)*4;
 ftshape=fft(nanmean(shapeMat),nfft);
 [~,midx]=max(abs(ftshape(1:nfft/2+1)));
-shapeLen=round(nfft/midx);
-varShape=nanvar(shapeMat);
-bias=conv(varShape,ones(1,shapeLen),'valid');
-% push shapes towards centre (increase cost of edges by 10%)
-parabola=[1:numel(bias)]-numel(bias)/2-.5;
-parabola=parabola/parabola(end);
-parabola=1+parabola.^2*.1;
-[~,bias]=min(bias.*parabola);
-bias=[bias bias+shapeLen/2+.5 bias+shapeLen];
+shapeLen=round(nfft/midx*numExtr/2);
+
+if shapeLen < .65 * size(shapeMat,2)
+  varShape=nanvar(shapeMat);
+  % push shapes towards centre (increase cost of edges by 25%)
+  parabola=[1:numel(varShape)]-numel(varShape)/2-.5;
+  parabola=parabola/parabola(end);
+  parabola=1+parabola.^2*.25;
+  
+  bias=conv(varShape.*parabola,ones(1,shapeLen),'valid');
+  
+  [~,bias]=min(bias);
+  bias=[bias bias+shapeLen/2+.5 bias+shapeLen];
+else % if number of extrema only just fits in the window, try to centre them
+  bias=size(shapeMat,2)/2;
+end
 
 interpFac=1e2;
 amplitudes=nan(numIt,1);
+sigma=0;
 for iter=1:numIt
   
   sel=ceil(rand(sampsz,1)*numTemp);
@@ -122,8 +134,11 @@ for iter=1:numIt
     reverseStr = repmat(sprintf('\b'), 1, length(msg));
   end
   %% calculating SkwIdx
-  
-    [skwIdx(iter), brd(iter,:), meanShapeInt]=bg_skewness_pktg_harsh(meanShape,bias,interpFac,numExtr);
+    if smoothflag
+      [skwIdx(iter), brd(iter,:), meanShapeInt, sigma]=bg_skewness_pktg_smooth(meanShape,bias,interpFac,numExtr,sigma);
+    else
+      [skwIdx(iter), brd(iter,:), meanShapeInt]=bg_skewness_pktg_harsh(meanShape,bias,interpFac,numExtr);
+    end
     
     if iter==1
       % make sure that bootstrapping will always focus on the same period
@@ -159,7 +174,7 @@ stats.skw.distr=skwIdx;
 
 % perform t-test on difference from zero (only works if frac=1).
 t=stats.skw.mu/stats.skw.sem;
-stats.skw.p_t=1-tcdf(abs(t),numIt-1);
+stats.skw.p_t=1-tcdf(abs(t),numTemp-1);
 % 95% confidence
 alpha=.05;
 try
@@ -177,7 +192,7 @@ stats.period.distr=periods/interpFac;
 
 % perform t-test on difference from zero (only works if frac=1).
 t=stats.period.mu/stats.period.sem;
-stats.period.p_t=1-tcdf(abs(t),numIt-1);
+stats.period.p_t=1-tcdf(abs(t),numTemp-1);
 % 95% confidence
 alpha=.05;
 try
