@@ -136,7 +136,7 @@ if isfield(cfg,'Flp')
   end
 end
 
-
+dat(nanSel)=nan;
 %%
 if isfield(cfg,'newLen')
   newLen=cfg.newLen;
