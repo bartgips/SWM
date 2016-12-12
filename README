@@ -1,9 +1,16 @@
-Sliding Window Matching algorithm for finding reoccurring patterns in time series 
-Not published yet.
-Manuscript.pdf contains the scientific article explaining its use
+Sliding Window Matching algorithm for finding reccurring patterns in time series 
+
+Published in:
+Gips, B., Bahramisharif, A., Lowet, E., Roberts, M. J., de Weerd, P., Jensen, O., & van der Eerden, J. (2017). 
+Discovering recurring patterns in electrophysiological recordings. 
+Journal of Neuroscience Methods, 275, 66-79.
+http://www.sciencedirect.com/science/article/pii/S0165027016302606
+
+Manuscript.pdf contains an old version of the scientific article explaining its use. (for when you cannot access the final paper)
 
 Code all runs in MATLAB
 
+(optional)
 requires fieldTrip toolbox for filtering of signals
 http://www.fieldtriptoolbox.org/
 
@@ -16,6 +23,3 @@ i.e.:
 ./related_functions
 ./scripts
 ./figs
-
-
-
